@@ -1,0 +1,233 @@
+/* EventList.css */
+
+.event-list-container {
+    padding-bottom: 2rem;
+}
+
+.event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    margin-top: 1rem;
+}
+
+.event-header-actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.event-grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.event-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+    height: 100%;
+}
+
+.event-card.clickable {
+    cursor: pointer;
+}
+
+.event-card.clickable:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.event-card.admin-view:hover {
+    border-color: var(--primary-light, #fca5a5);
+}
+
+.event-image-container {
+    height: 180px;
+    overflow: hidden;
+    border-bottom: 1px solid #f3f4f6;
+    position: relative;
+}
+
+.event-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.event-card:hover .event-image {
+    transform: scale(1.05);
+}
+
+.event-content {
+    padding: 1.5rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.event-title {
+    margin: 0 0 0.5rem;
+    color: var(--primary-color, #b91c1c);
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.event-info {
+    color: #6b7280;
+    font-size: 0.9rem;
+    margin: 0.25rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.event-description {
+    margin: 1rem 0;
+    color: #374151;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    /* stylelint-disable-next-line property-no-vendor-prefix */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.event-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: auto;
+    margin-bottom: 1rem;
+}
+
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-refrigerio {
+    background-color: #eff6ff;
+    color: #1e40af;
+}
+
+.badge-qr {
+    background-color: #f3e8ff;
+    color: #6b21a8;
+}
+
+.event-actions {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid #f3f4f6;
+}
+
+/* Modal Styles adjustments */
+.modal-section {
+    background: #f8f9fa;
+    padding: 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e5e7eb;
+}
+
+.modal-section-title {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    color: #374151;
+    font-weight: 600;
+}
+
+.refrigerio-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.refrigerio-list {
+    background: white;
+    padding: 1rem;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    margin-top: 0.5rem;
+}
+
+/* My Events Section */
+.my-events-section {
+    margin-top: 3rem;
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.my-event-item {
+    padding: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f9fafb;
+    transition: background 0.2s;
+}
+
+.my-event-item:hover {
+    background: white;
+    border-color: var(--primary-color);
+}
+
+/* New Tab Styles */
+.tabs-container {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 2px;
+}
+
+.tab-button {
+    background: none;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    margin-bottom: -4px;
+}
+
+.tab-button:hover {
+    color: var(--primary-color, #b91c1c);
+}
+
+.tab-button.active {
+    color: var(--primary-color, #b91c1c);
+    border-bottom-color: var(--primary-color, #b91c1c);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    background: #f9fafb;
+    border-radius: 12px;
+    color: #6b7280;
+    border: 1px dashed #d1d5db;
+}
