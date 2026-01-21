@@ -173,10 +173,8 @@ const StudentDashboard = () => (
 const TeacherDashboard = () => (
     <>
         <h2>Panel de Docente</h2>
-        <p>Bienvenido Docente.</p>
-        <EventList />
-        <h3 style={{marginTop: '30px'}}>Mis Asistentes</h3>
-        <AsistentesList />
+        <p>Bienvenido Docente. Puedes crear eventos (sujetos a aprobación).</p>
+        <EventList canCreate={true} />
     </>
 );
 

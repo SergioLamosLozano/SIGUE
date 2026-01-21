@@ -155,16 +155,36 @@ const EventList = ({ canCreate = false }) => {
             fetchEventos();
             showSuccess('Evento eliminado');
         } catch (error) {
-            showError('Error al eliminar');
+            showError('Error al eliminar', error.response?.data?.detail || 'No tienes permiso');
+        }
+    };
+
+    const handleApprove = async (eventoId) => {
+        const confirmed = await showConfirm(
+            '¿Aprobar este evento?',
+            'El evento será visible para todos los estudiantes.'
+        );
+        if(!confirmed) return;
+
+        try {
+            await axios.post(`http://localhost:8000/api/eventos/${eventoId}/aprobar/`, {}, authConfig);
+            fetchEventos();
+            showSuccess('Evento aprobado exitosamente');
+        } catch (error) {
+            showError('Error al aprobar');
         }
     };
 
     // --- FILTRADO DE PESTAÑAS (USUARIO) ---
     const [activeTab, setActiveTab] = useState('available');
 
+    const isAdmin = user?.role === 'Administrador';
+    const isDocente = user?.role === 'Docente';
+
     const filterEvents = () => {
         const now = new Date();
-        if (canCreate) return eventos; // Si es Admin (canCreate), muestra todo
+        // Admin: Ve todo sin filtros de pestañas
+        if (isAdmin) return eventos; 
 
         return eventos.filter(evento => {
             const eventStart = new Date(evento.fecha);
@@ -175,6 +195,11 @@ const EventList = ({ canCreate = false }) => {
             
             const isRegistered = misEventos.includes(evento.id);
             const isPast = eventEnd < now;
+
+            // Docentes pueden ver sus propios eventos en 'available' si son recientes, 
+            // o en 'history' si pasaron.
+            // PERO: Si el docente creó el evento, tal vez no quiera "inscribirse".
+            // Aun así, permitimos que se muestre.
 
             if (activeTab === 'available') {
                 return !isRegistered && !isPast;
@@ -196,7 +221,7 @@ const EventList = ({ canCreate = false }) => {
             {/* HEADER DE LA SECCIÓN */}
             <div className="event-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    {canCreate && (
+                    {isAdmin && (
                         <button 
                             onClick={() => navigate('/admin-dashboard')} 
                             className="btn btn-secondary"
@@ -206,7 +231,7 @@ const EventList = ({ canCreate = false }) => {
                         </button>
                     )}
                     <h2 style={{ margin: 0 }}>
-                        {canCreate ? 'Gestión de Eventos' : 'Eventos y Actividades'}
+                        {isAdmin ? 'Gestión de Eventos' : 'Eventos y Actividades'}
                     </h2>
                 </div>
                 
@@ -217,8 +242,8 @@ const EventList = ({ canCreate = false }) => {
                 )}
             </div>
 
-            {/* TABS DE NAVEGACIÓN (SOLO USUARIOS) */}
-            {!canCreate && (
+            {/* TABS DE NAVEGACIÓN (DOCENTES Y ESTUDIANTES) */}
+            {!isAdmin && (
                 <div className="tabs-container">
                     <button 
                         className={`tab-button ${activeTab === 'available' ? 'active' : ''}`}
@@ -249,7 +274,7 @@ const EventList = ({ canCreate = false }) => {
                         {activeTab === 'available' && "No hay eventos próximos disponibles para inscripción."}
                         {activeTab === 'registered' && "No te has inscrito a ningún evento próximo."}
                         {activeTab === 'history' && "No tienes eventos pasados registrados."}
-                        {canCreate && "No se han creado eventos aún."}
+                        {isAdmin && "No se han creado eventos aún."}
                     </p>
                 </div>
             ) : (
@@ -257,12 +282,13 @@ const EventList = ({ canCreate = false }) => {
                     {displayedEvents.map(evento => (
                         <div 
                             key={evento.id} 
-                            className={`event-card ${canCreate ? 'clickable admin-view' : ''}`} 
+                            className={`event-card ${canCreate ? 'clickable admin-view' : ''} ${evento.estado === 'PENDIENTE' ? 'pending-event' : ''}`} 
                             onClick={() => {
                                 if (canCreate) {
                                     navigate(`/admin-dashboard/event/${evento.id}`);
                                 }
                             }}
+                            style={evento.estado === 'PENDIENTE' ? { border: '2px dashed #f59e0b', opacity: 0.9 } : {}}
                         >
                             {/* IMAGEN DE FLYER SI EXISTE */}
                             {evento.flyer && (
@@ -284,32 +310,62 @@ const EventList = ({ canCreate = false }) => {
                                 
                                 {/* Badges informativos */}
                                 <div className="event-badges">
+                                    {evento.estado === 'PENDIENTE' && <span className="badge badge-warning">⏳ Pendiente</span>}
                                     {evento.requiere_refrigerio && <span className="badge badge-refrigerio">🍿 Refrigerio</span>}
                                     {evento.asistencia_qr && <span className="badge badge-qr">📱 QR</span>}
                                 </div>
                                 
                                 {/* BOTONES DE ACCIÓN */}
                                 <div className="event-actions">
-                                    {canCreate ? (
-                                        <button onClick={(e) => { e.stopPropagation(); handleDelete(evento.id); }} className="btn btn-danger" style={{ width: '100%' }}>
-                                            Eliminar
-                                        </button>
-                                    ) : (
-                                        // Acciones de Estudiante
-                                        activeTab === 'history' ? (
-                                             <div className="alert alert-secondary" style={{ marginBottom: 0, textAlign: 'center', padding: '0.5rem', background: '#f3f4f6', color: '#6b7280' }}>
-                                                🏁 Finalizado
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '5px', width: '100%'}}>
+                                        
+                                        {/* --- GESTIÓN (Admin o Dueño) --- */}
+                                        {(isAdmin || (canCreate && evento.creado_por === user.id)) && (
+                                            <div style={{display: 'flex', gap: '5px', width: '100%'}}>
+                                                {/* Aprobar (Solo Admin y Pendiente) */}
+                                                {isAdmin && evento.estado === 'PENDIENTE' && (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleApprove(evento.id); }} 
+                                                        className="btn btn-success" 
+                                                        style={{ flex: 1 }}
+                                                    >
+                                                        ✅ Aprobar
+                                                    </button>
+                                                )}
+                                                
+                                                {/* Eliminar (Admin o Dueño) */}
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleDelete(evento.id); }} 
+                                                    className="btn btn-danger" 
+                                                    style={{ flex: 1 }}
+                                                >
+                                                    🗑 Eliminar
+                                                </button>
                                             </div>
-                                        ) : misEventos.includes(evento.id) ? (
-                                            <div className="alert alert-success" style={{ marginBottom: 0, textAlign: 'center', padding: '0.5rem' }}>
-                                                ✅ Ya estás inscrito
-                                            </div>
-                                        ) : (
-                                            <button onClick={() => handleJoin(evento.id)} className="btn btn-primary" style={{ width: '100%' }}>
-                                                Unirme al Evento
-                                            </button>
-                                        )
-                                    )}
+                                        )}
+
+                                        {/* --- PARTICIPACIÓN (Todos excepto Admin, o incluso Admin si quisiera) --- */}
+                                        {/* Docentes y Estudiantes pueden unirse. 
+                                            Si el Docente es el creador, puede unirse también si desea (para generar su propio QR). 
+                                        */}
+                                        {!isAdmin && (
+                                            <>
+                                                {activeTab === 'history' ? (
+                                                    <div className="alert alert-secondary" style={{ marginBottom: 0, textAlign: 'center', padding: '0.5rem', background: '#f3f4f6', color: '#6b7280' }}>
+                                                        🏁 Finalizado
+                                                    </div>
+                                                ) : misEventos.includes(evento.id) ? (
+                                                    <div className="alert alert-success" style={{ marginBottom: 0, textAlign: 'center', padding: '0.5rem' }}>
+                                                        ✅ Ya estás inscrito
+                                                    </div>
+                                                ) : (
+                                                    <button onClick={(e) => { e.stopPropagation(); handleJoin(evento.id); }} className="btn btn-primary" style={{ width: '100%' }}>
+                                                        Unirme al Evento
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>

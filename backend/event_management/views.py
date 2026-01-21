@@ -27,14 +27,55 @@ class EventoViewSet(viewsets.ModelViewSet):
     serializer_class = EventoSerializer
     # Requiere autenticación para cualquier operación
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Filtra los eventos según el rol del usuario:
+        - Administrador: Ve todos los eventos.
+        - Docente: Ve eventos aprobados + sus propios eventos (pendientes o aprobados).
+        - Estudiante/Otros: Solo ven eventos aprobados.
+        """
+        user = self.request.user
+        if not user.is_authenticated:
+            return Evento.objects.none()
+
+        if user.role == 'Administrador':
+            return Evento.objects.all().order_by('-fecha')
+        
+        # Base query: Eventos aprobados
+        queryset = Evento.objects.filter(estado='APROBADO')
+
+        if user.role == 'Docente':
+            # Docentes también ven sus propios eventos
+            mis_eventos = Evento.objects.filter(creado_por=user)
+            queryset = queryset | mis_eventos
+        
+        return queryset.distinct().order_by('-fecha')
     
     # Imports locales para exportación CSV
     import csv
     from django.http import HttpResponse
 
     def perform_create(self, serializer):
-        """Asigna automáticamente el creador del evento al usuario actual."""
-        serializer.save(creado_por=self.request.user)
+        """
+        Asigna el creador.
+        Si es Admin, el evento se aprueba automáticamente.
+        Si es Docente, queda en PENDIENTE.
+        """
+        user = self.request.user
+        estado = 'APROBADO' if user.role == 'Administrador' else 'PENDIENTE'
+        serializer.save(creado_por=user, estado=estado)
+
+    @action(detail=True, methods=['post'])
+    def aprobar(self, request, pk=None):
+        """Permite a un administrador aprobar un evento pendiente."""
+        if request.user.role != 'Administrador':
+            return Response({'error': 'No tienes permisos para realizar esta acción'}, status=status.HTTP_403_FORBIDDEN)
+        
+        evento = self.get_object()
+        evento.estado = 'APROBADO'
+        evento.save()
+        return Response({'message': 'Evento aprobado exitosamente'})
 
     @action(detail=True, methods=['post'])
     def unirse(self, request, pk=None):

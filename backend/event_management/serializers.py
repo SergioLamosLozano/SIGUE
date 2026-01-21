@@ -39,8 +39,8 @@ class EventoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Evento
         fields = ['id', 'titulo', 'descripcion', 'fecha', 'fecha_fin', 'lugar', 'creado_por', 'creado_por_nombre', 'fecha_creacion', 'ya_inscrito',
-                 'flyer', 'requiere_refrigerio', 'cantidad_refrigerios', 'detalles_refrigerios', 'asistencia_qr']
-        read_only_fields = ['creado_por', 'fecha_creacion']
+                 'flyer', 'requiere_refrigerio', 'cantidad_refrigerios', 'detalles_refrigerios', 'asistencia_qr', 'estado']
+        read_only_fields = ['creado_por', 'fecha_creacion', 'estado']
 
     def get_ya_inscrito(self, obj):
         """Verifica si el usuario que hace la petición está inscrito en este evento."""

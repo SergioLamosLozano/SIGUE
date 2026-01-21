@@ -88,6 +88,14 @@ class Evento(models.Model):
     # Plantilla PDF para generar certificados automáticos
     plantilla_certificado = models.FileField(upload_to='plantillas_certificados/', blank=True, null=True, verbose_name='Plantilla de Certificado (PDF)')
     
+    # Workflow de Aprobación
+    ESTADO_CHOICES = [
+        ('PENDIENTE', 'Pendiente de Aprobación'),
+        ('APROBADO', 'Aprobado'),
+        ('RECHAZADO', 'Rechazado'),
+    ]
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='PENDIENTE', verbose_name='Estado del Evento')
+
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
