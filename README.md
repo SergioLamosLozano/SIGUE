@@ -1,213 +1,154 @@
-# Sistema de Gestión de Refrigerios con Códigos QR
+# SIGUE - Sistema de Gestión de Eventos y Refrigerios
 
-Sistema completo para gestionar desayuno, almuerzo y refrigerio en eventos mediante códigos QR únicos por estudiante.
+Bienvenido a **SIGUE**, un sistema integral diseñado para facilitar la administración de eventos académicos, el control de asistencia mediante tecnología QR y la gestión eficiente de refrigerios universitarios.
 
-## 🏗️ Arquitectura del Proyecto
+## 📋 Descripción
 
-- **Backend**: Django + Django REST Framework + MySQL
-- **Frontend**: React + Vite + Axios
-- **Códigos QR**: Generación automática con biblioteca qrcode
-- **Base de Datos**: MySQL (refrigerios_db)
+Este proyecto soluciona la problemática del control manual de asistencia y entrega de alimentos en eventos masivos. Permite a los administradores crear eventos, a los estudiantes inscribirse y obtener un código QR único, y al personal de logística validar dichos códigos en tiempo real para el ingreso o la entrega de refrigerios.
 
-## 📁 Estructura del Proyecto
+Adicionalmente, el sistema automatiza la generación y envío de certificados de asistencia en formato PDF.
 
-```
-Prueba Refrigerios/
-├── backend/          # API Django REST Framework
-│   ├── event_management/  # Aplicación Django principal
-│   ├── manage.py
-│   └── requirements.txt
-├── frontend/         # Aplicación React con Vite
-│   ├── src/
-│   ├── package.json
-│   └── vite.config.js
-└── README.md
-```
+## 🚀 Características Principales
 
-## 🚀 Comandos de Instalación
+### 📅 Gestión de Eventos
+- Creación y edición de eventos con fecha, hora, lugar y cupos.
+- Carga de imágenes promocionales (Flyers).
+- Configuración de tipos de refrigerios (Desayuno, Almuerzo, Refrigerio PM).
+- Control de fechas de inscripción.
 
-### 1️⃣ Configuración del Backend (Django)
+### 📱 Códigos QR Inteligentes
+- **Generación Automática**: Cada inscrito recibe un QR único.
+- **Multi-Propósito**: El mismo sistema maneja QRs para Entrada y para cada comida específica.
+- **Validación en Tiempo Real**: Evita la suplantación y el doble canje de beneficios.
+- **Escáner Web**: Módulo de lectura compatible con cámaras de celular y webcam.
 
-#### Paso 1: Crear entorno virtual
-```powershell
-cd backend
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
+### 👥 Gestión de Usuarios
+- **Roles Diferenciados**:
+  - **Administrador**: Control total del sistema.
+  - **Asistente (Staff)**: Permiso para escanear y verificar QRs.
+  - **Estudiante/Docente**: Inscripción a eventos y visualización de historial.
+- Autenticación segura basada en Tokens (JWT).
 
-#### Paso 2: Instalar dependencias
-```powershell
-pip install -r requirements.txt
-```
-
-#### Paso 3: Configurar Variables de Entorno
-Copia el archivo de ejemplo y configura tus credenciales:
-```powershell
-cp .env.example .env
-```
-
-Edita `.env` con tus credenciales:
-- Contraseñas de MySQL
-- Email y contraseña de aplicación de Gmail
-- Secret key de Django
-
-**Ver guía completa**: [CONFIGURACION_VARIABLES_ENTORNO.md](CONFIGURACION_VARIABLES_ENTORNO.md)
-
-#### Paso 4: Configurar MySQL
-Crea las bases de datos en MySQL:
-```sql
-CREATE DATABASE refrigerio_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE DATABASE rica_univalle CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-#### Paso 4: Aplicar migraciones
-```powershell
-python manage.py migrate
-```
-
-#### Paso 5: Crear superusuario
-```powershell
-python manage.py createsuperuser
-```
-
-#### Paso 6: Ejecutar servidor de desarrollo
-```powershell
-python manage.py runserver
-```
-
-El backend estará disponible en: `http://localhost:8000`
-
----
-
-### 2️⃣ Configuración del Frontend (React + Vite)
-
-#### Paso 1: Crear proyecto con Vite
-```powershell
-cd ../frontend
-npm create vite@latest . -- --template react
-```
-
-#### Paso 2: Instalar dependencias
-```powershell
-npm install
-```
-
-#### Paso 3: Instalar bibliotecas adicionales
-```powershell
-npm install axios react-router-dom react-qr-scanner html5-qrcode
-```
-
-#### Paso 4: Ejecutar servidor de desarrollo
-```powershell
-npm run dev
-```
-
-El frontend estará disponible en: `http://localhost:5173`
-
----
-
-## 📊 Modelos de Base de Datos
-
-### Estudiante
-- `id`: ID único
-- `nombre`: Nombre completo
-- `identificacion`: Número de documento
-- `email`: Correo electrónico
-- `activo`: Estado del estudiante
-
-### CodigoQR
-- `id`: ID único
-- `estudiante`: Relación con Estudiante
-- `tipo_comida`: DESAYUNO | ALMUERZO | REFRIGERIO
-- `codigo`: Código QR único (UUID)
-- `usado`: Boolean (si fue escaneado)
-- `fecha_creacion`: Timestamp
-- `fecha_uso`: Timestamp del escaneo
-
----
-
-## 🔌 Endpoints de la API
-
-### Estudiantes
-- `GET /api/estudiantes/` - Listar todos los estudiantes
-- `POST /api/estudiantes/` - Crear nuevo estudiante
-- `GET /api/estudiantes/{id}/` - Ver detalle de estudiante
-- `PUT /api/estudiantes/{id}/` - Actualizar estudiante
-- `DELETE /api/estudiantes/{id}/` - Eliminar estudiante
-
-### Códigos QR
-- `GET /api/codigos-qr/` - Listar todos los códigos QR
-- `POST /api/codigos-qr/generar/` - Generar 3 códigos QR para un estudiante
-- `POST /api/codigos-qr/validar/` - Validar y marcar código QR como usado
-- `GET /api/codigos-qr/estudiante/{id}/` - Ver códigos QR de un estudiante
-
----
-
-## 🎯 Funcionalidades Principales
-
-1. **Registro de Estudiantes**: Administrar lista de invitados
-2. **Generación Automática de QR**: 3 códigos por estudiante (desayuno, almuerzo, refrigerio)
-3. **Escaneo de QR**: Validación en tiempo real
-4. **Uso Único**: Los códigos se marcan como usados después del escaneo
-5. **Panel de Administración**: Gestión completa desde Django Admin
-
----
+### 🎓 Certificación y Reportes
+- **Certificados PDF**: Generación masiva basada en plantillas personalizables.
+- **Envío por Email**: Distribución automática de QRs y Certificados.
+- **Estadísticas**: Dashboard con datos de asistencia real vs. inscritos.
+- **Exportación**: Descarga de listas de asistencia en Excel/CSV.
 
 ## 🛠️ Tecnologías Utilizadas
 
-### Backend
-- Django 5.x
-- Django REST Framework
-- Python QRCode
-- Pillow (procesamiento de imágenes)
-- MySQL (refrigerios_db)
-- mysqlclient (conector MySQL)
+Este proyecto utiliza una arquitectura moderna separando Backend y Frontend:
 
-### Frontend
-- React 18
-- Vite
-- Axios (peticiones HTTP)
-- HTML5-QRCode (escaneo de QR)
-- React Router (navegación)
+### Backend (API REST)
+- **Lenguaje**: Python 3.x
+- **Framework**: Django 5.2
+- **API Toolkit**: Django REST Framework (DRF)
+- **Base de Datos**: MySQL (Optimizado para consutas relacionales)
+- **Autenticación**: Simple JWT
+- **Librerías Clave**: 
+  - `reportlab` (Generación de PDFs)
+  - `pandas` (Procesamiento de Excel)
+  - `qrcode` (Generación de códigos)
+  - `django-cors-headers` (Seguridad Web)
+
+### Frontend (Cliente Web)
+- **Framework**: React 18
+- **Build Tool**: Vite (Rápido y ligero)
+- **Estilos**: CSS3 Moderno (Diseño Responsivo y Glassmorphism)
+- **Librerías Clave**:
+  - `axios` (Peticiones HTTP)
+  - `react-router-dom` (Navegación)
+  - `html5-qrcode` (Lector de QR en navegador)
+
+## � Arquitectura del Proyecto
+
+```text
+SIGUE/
+├── backend/                 # Lógica del Servidor (Django)
+│   ├── config/              # Configuración global (Settings, URLs)
+│   ├── event_management/    # App principal (Eventos, QRs, PDF)
+│   ├── users/               # Gestión de usuarios y Auth
+│   ├── media/               # Archivos generados (QRs, Flyers)
+│   └── manage.py            # CLI de Django
+│
+└── frontend/                # Interfaz de Usuario (React)
+    ├── public/              # Assets estáticos
+    ├── src/
+    │   ├── components/      # Componentes Reutilizables
+    │   │   ├── events/      # Vistas de Eventos
+    │   │   ├── qr/          # Escáner y Generador
+    │   │   └── users/       # Perfil y Gestión
+    │   ├── context/         # AuthContext (Estado Global)
+    │   └── services/        # API Service (Axios)
+    ├── index.html           # Entry Point
+    └── vite.config.js       # Configuración Vite
+```
+
+## ⚙️ Guía de Instalación
+
+Sigue estos pasos para desplegar el proyecto en tu entorno local:
+
+### Prerrequisitos
+- Tener instalado **Python 3.10+** y **Node.js 18+**.
+- Tener un servidor **MySQL** corriendo (ej: XAMPP, MySQL Workbench).
+
+### 1. Configuración del Backend
+
+1. Navega a la carpeta del backend:
+   ```bash
+   cd backend
+   ```
+2. Crea y activa un entorno virtual (recomendado):
+   ```bash
+   python -m venv venv
+   # En Windows:
+   venv\Scripts\activate
+   # En Mac/Linux:
+   source venv/bin/activate
+   ```
+3. Instala las dependencias:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Configura las variables de entorno:
+   - Crea un archivo `.env` en la carpeta `backend/` basado en tus credenciales de base de datos (DB_NAME, DB_USER, DB_PASSWORD).
+5. Ejecuta las migraciones:
+   ```bash
+   python manage.py migrate
+   ```
+6. Inicia el servidor:
+   ```bash
+   python manage.py runserver
+   ```
+   *El backend correrá en http://localhost:8000*
+
+### 2. Configuración del Frontend
+
+1. Abre una nueva terminal y navega a la carpeta frontend:
+   ```bash
+   cd frontend
+   ```
+2. Instala las dependencias de Node:
+   ```bash
+   npm install
+   ```
+3. Inicia el servidor de desarrollo:
+   ```bash
+   npm run dev
+   ```
+   *El frontend correrá en http://localhost:5173*
+
+## � Acceso al Sistema
+
+Para el primer ingreso, necesitarás un superusuario creado desde el backend:
+
+```bash
+# En terminal backend
+python manage.py createsuperuser
+```
+
+Luego podrás iniciar sesión en el Frontend con esas credenciales y tendrás acceso al Panel de Administrador.
 
 ---
-
-## 📝 Notas de Desarrollo
-
-- Los códigos QR se generan usando UUID para garantizar unicidad
-- CORS está habilitado para desarrollo local
-- Los códigos QR incluyen el tipo de comida y el ID del estudiante
-- Base de datos MySQL `refrigerios_db` con charset utf8mb4
-- Ver `backend/CONFIGURACION_MYSQL.md` para más detalles sobre MySQL
-
----
-
-## 🔐 Seguridad
-
-- Validación de códigos QR en el backend
-- Verificación de uso único
-- Autenticación para endpoints administrativos
-
----
-
-## 📦 Despliegue
-
-### Backend
-- Configurar variables de entorno
-- Usar PostgreSQL en producción
-- Configurar `ALLOWED_HOSTS`
-- Ejecutar `collectstatic`
-
-### Frontend
-- Build de producción: `npm run build`
-- Servir desde Nginx o servicio de hosting
-
----
-
-## 👨‍💻 Autor
-
-Sistema desarrollado para gestión de eventos con refrigerios
-
-## 📄 Licencia
-
-Este proyecto es de uso educativo
+**Desarrollado para la Gestión Académica y Eventos Universitarios**
+*Versión 1.0.0*

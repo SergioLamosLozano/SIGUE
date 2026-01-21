@@ -88,5 +88,6 @@ export const getEstudiante = getAsistente;
 export const createEstudiante = createAsistente;
 export const updateEstudiante = updateAsistente;
 export const deleteEstudiante = deleteAsistente;
+export const getCodigosPorEstudiante = getCodigosPorAsistente;
 
 export default api;
