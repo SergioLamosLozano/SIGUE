@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
-from .views import CustomTokenObtainPairView, RegisterView, UserUpdateView, UserViewSet
+from .views import CustomTokenObtainPairView, RegisterView, UserUpdateView, UserViewSet, VerifyEmailView
 
 # Router para las vistas basadas en ViewSet (CRUD de administradores)
 router = DefaultRouter()
@@ -16,6 +16,9 @@ urlpatterns = [
     
     # Endpoint para registro de nuevos usuarios
     path('auth/register/', RegisterView.as_view(), name='auth_register'),
+
+    # Endpoint para verificar email
+    path('auth/verify/', VerifyEmailView.as_view(), name='auth_verify'),
     
     # Endpoint para ver y editar el perfil propio del usuario autenticado
     path('profile/', UserUpdateView.as_view(), name='user_profile'),

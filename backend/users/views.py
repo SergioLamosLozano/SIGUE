@@ -49,3 +49,36 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserAdminSerializer
     # Requiere autenticación y rol de administrador
     permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+
+class VerifyEmailView(APIView):
+    """
+    Endpoint para verificar el correo electrónico mediante código de 4 dígitos.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        id_usuario = request.data.get('id')
+        code = request.data.get('code')
+
+        if not id_usuario or not code:
+            return Response({'error': 'ID y Código son obligatorios'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = CustomUser.objects.get(id=id_usuario)
+        except CustomUser.DoesNotExist:
+             return Response({'error': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if user.is_active:
+             return Response({'message': 'El usuario ya está activo'}, status=status.HTTP_200_OK)
+
+        if user.verification_code == code:
+            user.is_active = True
+            user.verification_code = None # Limpiar código
+            user.save()
+            return Response({'message': 'Cuenta verificada exitosamente'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Código incorrecto'}, status=status.HTTP_400_BAD_REQUEST)

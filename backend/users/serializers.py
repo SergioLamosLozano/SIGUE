@@ -1,6 +1,9 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
 from .models import CustomUser
+import random
+from django.core.mail import send_mail
+from django.conf import settings
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
@@ -35,14 +38,39 @@ class RegisterSerializer(serializers.ModelSerializer):
         """
         Crea un nuevo usuario usando el CustomUserManager.
         """
+        # Asegurar que el email está presente (aunque el frontend lo valide, el modelo lo permite nulo, aquí lo forzamos)
+        if not validated_data.get('email'):
+            raise serializers.ValidationError({"email": "El correo electrónico es obligatorio para el registro."})
+
+        # Generar código de 4 dígitos
+        code = str(random.randint(1000, 9999))
+
         user = CustomUser.objects.create_user(
             id=validated_data['id'],
             password=validated_data['password'],
             full_name=validated_data['full_name'],
-            email=validated_data.get('email', ''),
+            email=validated_data['email'],
             role=validated_data['role'],
-            dependency=validated_data.get('dependency', '')
+            dependency=validated_data.get('dependency', ''),
+            is_active=False, # Inactivo hasta verificar
+            verification_code=code
         )
+
+        # Enviar correo
+        try:
+             print(f"DEBUG CODE for {user.email}: {code}") # Para facilitar pruebas locales
+             send_mail(
+                'Confirma tu cuenta - SIGUE',
+                f'Hola {user.full_name},\n\nTu código de verificación es: {code}',
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            # Si falla el correo, podríamos borrar el usuario o solo loguear. 
+            # Por ahora, permitimos que falle pero logueamos (idealmente rollback manual o transaccional).
+            print(f"Error enviando correo: {e}")
+
         return user
 
 class UserSerializer(serializers.ModelSerializer):

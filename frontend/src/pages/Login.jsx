@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import '../styles/Login.css';
+import { showSuccess, showError, showToast } from '../services/alert';
 
 // Programas académicos disponibles para estudiantes
 const PROGRAMS = [
@@ -47,8 +48,11 @@ const Login = () => {
         role: 'Estudiante',
         dependency: 'Contaduria Publica', // Valor por defecto para estudiantes
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        verificationCode: ''
     });
+    const [verificationStep, setVerificationStep] = useState(false); // Controls if we show the register form or the code input
+
 
     /**
      * Maneja el envío del formulario de Login.
@@ -78,37 +82,53 @@ const Login = () => {
      */
     const handleRegisterSubmit = async (e) => {
         e.preventDefault();
-        // Validar contraseñas
         if (regData.password !== regData.confirmPassword) {
-            alert("Las contraseñas no coinciden");
+            showError("Error", "Las contraseñas no coinciden");
             return;
         }
 
         try {
-            // Preparar payload para el backend
             const payload = {
                 id: regData.id,
                 full_name: regData.full_name,
                 email: regData.email,
                 role: regData.role,
                 password: regData.password,
-                // Si es estudiante, usa el dropdown, si no, usa el input de texto
                 dependency: regData.role === 'Estudiante' ? regData.dependency : (regData.dependency || '')
             };
 
-            // Llamada directa a axios (TODO: Mover a api.js para centralizar)
             await axios.post('http://localhost:8000/api/users/auth/register/', payload);
             
-            alert("Cuenta creada exitosamente. Por favor inicia sesión.");
-            setShowRegister(false);
+            // Éxito: Pasar al paso de verificación
+            setVerificationStep(true);
+            showToast("Código de verificación enviado a su correo", "info");
             
-            // Autocompletar el login con los datos registrados
-            setId(regData.id);
-            setPassword('');
         } catch (error) {
             console.error(error);
-            // Mostrar error detallado del backend si existe
-            alert("Error al registrar: " + (error.response?.data?.detail || JSON.stringify(error.response?.data) || error.message));
+            showError("Error al registrar", error.response?.data?.detail || JSON.stringify(error.response?.data) || error.message);
+        }
+    };
+
+    const handleVerifySubmit = async (e) => {
+        e.preventDefault();
+        try {
+            await axios.post('http://localhost:8000/api/users/auth/verify/', {
+                id: regData.id,
+                code: regData.verificationCode
+            });
+            
+            showSuccess("¡Verificado!", "Cuenta verificada exitosamente. Ahora puedes iniciar sesión.");
+            setShowRegister(false);
+            setVerificationStep(false);
+            
+            // Autocompletar login
+            setId(regData.id);
+            setPassword('');
+            // Limpiar form
+            setRegData({...regData, password: '', confirmPassword: '', verificationCode: ''});
+
+        } catch (error) {
+             showError("Error de verificación", error.response?.data?.error || "Código incorrecto");
         }
     };
 
@@ -175,14 +195,45 @@ const Login = () => {
                 </form>
             </div>
 
-            {/* MODAL DE REGISTRO */}
+            {/* MODAL DE REGISTRO Y VERIFICACIÓN */}
             {showRegister && (
                 <div className="modal-overlay" onClick={() => setShowRegister(false)}>
                     <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
                         <div className="modal-header">
-                            <h3>Crear Nueva Cuenta</h3>
+                            <h3>{verificationStep ? 'Verificar Cuenta' : 'Crear Nueva Cuenta'}</h3>
                             <button className="modal-close" onClick={() => setShowRegister(false)}>✕</button>
                         </div>
+                        
+                        {verificationStep ? (
+                             <form onSubmit={handleVerifySubmit}>
+                                <div style={{textAlign: 'center', marginBottom: '20px'}}>
+                                    <p>Hemos enviado un código a <strong>{regData.email}</strong></p>
+                                </div>
+                                <div className="form-group">
+                                    <label>Código de Verificación (4 dígitos)</label>
+                                    <input 
+                                        type="text"
+                                        maxLength="4"
+                                        value={regData.verificationCode}
+                                        onChange={e => setRegData({...regData, verificationCode: e.target.value})}
+                                        required
+                                        placeholder="Ej: 1234"
+                                        style={{textAlign: 'center', fontSize: '1.5rem', letterSpacing: '5px'}}
+                                    />
+                                </div>
+                                <button type="submit" className="btn btn-success" style={{ width: '100%', marginTop: '10px' }}>
+                                    Verificar y Activar
+                                </button>
+                                <button 
+                                    type="button" 
+                                    className="btn btn-secondary" 
+                                    style={{ width: '100%', marginTop: '10px' }}
+                                    onClick={() => setVerificationStep(false)}
+                                >
+                                    Volver / Corregir Correo
+                                </button>
+                             </form>
+                        ) : (
                         <form onSubmit={handleRegisterSubmit}>
                             <div className="form-group">
                                 <label>Rol</label>
@@ -216,11 +267,12 @@ const Login = () => {
                             </div>
 
                              <div className="form-group">
-                                <label>Email (Opcional)</label>
+                                <label>Email (Obligatorio)</label>
                                 <input 
                                     type="email"
                                     value={regData.email}
                                     onChange={e => setRegData({...regData, email: e.target.value})}
+                                    required
                                 />
                             </div>
 
@@ -278,6 +330,7 @@ const Login = () => {
                                 Registrarse
                             </button>
                         </form>
+                        )}
                     </div>
                 </div>
             )}

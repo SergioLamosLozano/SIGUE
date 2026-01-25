@@ -68,6 +68,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     # Campos de estado y permisos requeridos por Django
     is_active = models.BooleanField(default=True, verbose_name='Activo') # Para desactivar cuentas sin borrarlas
     is_staff = models.BooleanField(default=False, verbose_name='Es Staff') # Para acceder al admin de Django
+    
+    # Campo para validación de correo (Código de 4 dígitos)
+    verification_code = models.CharField(max_length=4, blank=True, null=True, verbose_name='Código de Verificación')
 
     # Asigna el gestor de usuarios personalizado
     objects = CustomUserManager()
