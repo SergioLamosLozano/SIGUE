@@ -11,18 +11,21 @@ Adicionalmente, el sistema automatiza la generación y envío de certificados de
 ## 🚀 Características Principales
 
 ### 📅 Gestión de Eventos
+
 - Creación y edición de eventos con fecha, hora, lugar y cupos.
 - Carga de imágenes promocionales (Flyers).
 - Configuración de tipos de refrigerios (Desayuno, Almuerzo, Refrigerio PM).
 - Control de fechas de inscripción.
 
 ### 📱 Códigos QR Inteligentes
+
 - **Generación Automática**: Cada inscrito recibe un QR único.
 - **Multi-Propósito**: El mismo sistema maneja QRs para Entrada y para cada comida específica.
 - **Validación en Tiempo Real**: Evita la suplantación y el doble canje de beneficios.
 - **Escáner Web**: Módulo de lectura compatible con cámaras de celular y webcam.
 
 ### 👥 Gestión de Usuarios
+
 - **Roles Diferenciados**:
   - **Administrador**: Control total del sistema.
   - **Asistente (Staff)**: Permiso para escanear y verificar QRs.
@@ -30,6 +33,7 @@ Adicionalmente, el sistema automatiza la generación y envío de certificados de
 - Autenticación segura basada en Tokens (JWT).
 
 ### 🎓 Certificación y Reportes
+
 - **Certificados PDF**: Generación masiva basada en plantillas personalizables.
 - **Envío por Email**: Distribución automática de QRs y Certificados.
 - **Estadísticas**: Dashboard con datos de asistencia real vs. inscritos.
@@ -40,18 +44,20 @@ Adicionalmente, el sistema automatiza la generación y envío de certificados de
 Este proyecto utiliza una arquitectura moderna separando Backend y Frontend:
 
 ### Backend (API REST)
+
 - **Lenguaje**: Python 3.x
 - **Framework**: Django 5.2
 - **API Toolkit**: Django REST Framework (DRF)
 - **Base de Datos**: MySQL (Optimizado para consutas relacionales)
 - **Autenticación**: Simple JWT
-- **Librerías Clave**: 
+- **Librerías Clave**:
   - `reportlab` (Generación de PDFs)
   - `pandas` (Procesamiento de Excel)
   - `qrcode` (Generación de códigos)
   - `django-cors-headers` (Seguridad Web)
 
 ### Frontend (Cliente Web)
+
 - **Framework**: React 18
 - **Build Tool**: Vite (Rápido y ligero)
 - **Estilos**: CSS3 Moderno (Diseño Responsivo y Glassmorphism)
@@ -60,14 +66,13 @@ Este proyecto utiliza una arquitectura moderna separando Backend y Frontend:
   - `react-router-dom` (Navegación)
   - `html5-qrcode` (Lector de QR en navegador)
 
-## � Arquitectura del Proyecto
+## 📐 Arquitectura del Proyecto
 
 ```text
 SIGUE/
 ├── backend/                 # Lógica del Servidor (Django)
-│   ├── config/              # Configuración global (Settings, URLs)
-│   ├── event_management/    # App principal (Eventos, QRs, PDF)
-│   ├── users/               # Gestión de usuarios y Auth
+│   ├── backend/             # Configuración global (Settings, URLs)
+│   ├── core/                # App principal consolidada (Eventos + Usuarios)
 │   ├── media/               # Archivos generados (QRs, Flyers)
 │   └── manage.py            # CLI de Django
 │
@@ -89,6 +94,7 @@ SIGUE/
 Sigue estos pasos para desplegar el proyecto en tu entorno local:
 
 ### Prerrequisitos
+
 - Tener instalado **Python 3.10+** y **Node.js 18+**.
 - Tener un servidor **MySQL** corriendo (ej: XAMPP, MySQL Workbench).
 
@@ -120,7 +126,7 @@ Sigue estos pasos para desplegar el proyecto en tu entorno local:
    ```bash
    python manage.py runserver
    ```
-   *El backend correrá en http://localhost:8000*
+   _El backend correrá en http://localhost:8000_
 
 ### 2. Configuración del Frontend
 
@@ -136,7 +142,7 @@ Sigue estos pasos para desplegar el proyecto en tu entorno local:
    ```bash
    npm run dev
    ```
-   *El frontend correrá en http://localhost:5173*
+   _El frontend correrá en http://localhost:5173_
 
 ## � Acceso al Sistema
 
@@ -150,5 +156,6 @@ python manage.py createsuperuser
 Luego podrás iniciar sesión en el Frontend con esas credenciales y tendrás acceso al Panel de Administrador.
 
 ---
+
 **Desarrollado para la Gestión Académica y Eventos Universitarios**
-*Versión 1.0.0*
+_Versión 1.0.0_
