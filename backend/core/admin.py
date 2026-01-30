@@ -1,9 +1,42 @@
 from django.contrib import admin
-from .models import Asistente, CodigoQR, Evento, Inscripcion
+from .models import CustomUser, Asistente, CodigoQR, Evento, Inscripcion
 
-# -----------------------------------------------------------------------------
-# CONFIGURACIÓN DEL PANEL DE ADMINISTRACIÓN
-# -----------------------------------------------------------------------------
+# ================================================================================
+# USER ADMIN
+# ================================================================================
+
+@admin.register(CustomUser)
+class CustomUserAdmin(admin.ModelAdmin):
+    """
+    Configuración del panel de administración para el modelo de Usuario.
+    Define qué columnas se ven en la lista, filtros y campos de búsqueda.
+    """
+    # Campos a mostrar en la lista de usuarios
+    list_display = ('id', 'full_name', 'email', 'role', 'dependency', 'is_active', 'is_staff')
+    
+    # Filtros laterales
+    list_filter = ('role', 'is_active', 'is_staff', 'dependency')
+    
+    # Campos por los que se puede buscar
+    search_fields = ('id', 'full_name', 'email')
+    
+    # Ordenamiento por defecto
+    ordering = ('full_name',)
+    
+    # Organización de os campos en el formulario de edición
+    fieldsets = (
+        (None, {'fields': ('id', 'password')}),
+        ('Información Personal', {'fields': ('full_name', 'email', 'dependency')}),
+        ('Permisos', {'fields': ('role', 'is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+    )
+    
+    # Campos de solo lectura al ver un detalle (opcional, en este caso ninguno específico)
+    readonly_fields = []
+
+
+# ================================================================================
+# EVENT MANAGEMENT ADMIN
+# ================================================================================
 
 @admin.register(Asistente)
 class AsistenteAdmin(admin.ModelAdmin):

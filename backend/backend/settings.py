@@ -24,8 +24,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Ver https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # ADVERTENCIA DE SEGURIDAD: ¡mantén secreta la clave secreta usada en producción!
-# Se lee desde las variables de entorno (.env) o usa un valor por defecto inseguro.
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-default-key')
+# Se lee desde las variables de entorno (.env)
+SECRET_KEY = config('SECRET_KEY')
 
 # ADVERTENCIA DE SEGURIDAD: ¡no ejecutes con debug activado en producción!
 # DEBUG=True mostrará errores detallados. En producción debe ser False.
@@ -51,12 +51,11 @@ INSTALLED_APPS = [
     'corsheaders',                  # Headers CORS para permitir peticiones del frontend
     
     # Aplicaciones locales (creadas para este proyecto)
-    'event_management',             # Gestión de eventos y refrigerios
-    'users',                        # Gestión de usuarios (personalizado)
+    'core',                         # App principal consolidada (Eventos + Usuarios)
 ]
 
-# Modelo de usuario personalizado que estamos usando (definido en la app users)
-AUTH_USER_MODEL = 'users.CustomUser'
+# Modelo de usuario personalizado que estamos usando (definido en la app core)
+AUTH_USER_MODEL = 'core.CustomUser'
 
 MIDDLEWARE = [
     # Middleware para seguridad
@@ -78,7 +77,7 @@ MIDDLEWARE = [
 ]
 
 # Configuración de URLs raíz
-ROOT_URLCONF = 'config.urls'
+ROOT_URLCONF = 'backend.urls'
 
 TEMPLATES = [
     {
@@ -97,7 +96,7 @@ TEMPLATES = [
 ]
 
 # Aplicación WSGI para despliegue
-WSGI_APPLICATION = 'config.wsgi.application'
+WSGI_APPLICATION = 'backend.wsgi.application'
 
 
 # Base de datos
@@ -107,9 +106,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': config('DB_ENGINE', default='django.db.backends.mysql'),
-        'NAME': config('DB_NAME', default='contaduria_db'), # Nombre de la BD
+        'NAME': config('DB_NAME', default='sigue_db'), # Nombre de la BD
         'USER': config('DB_USER', default='root'),         # Usuario de la BD
-        'PASSWORD': config('DB_PASSWORD', default='Sergio990806'), # Contraseña
+        'PASSWORD': config('DB_PASSWORD'), # Contraseña (se lee desde .env)
         'HOST': config('DB_HOST', default='localhost'),    # Host (localhost)
         'PORT': config('DB_PORT', default='3306'),         # Puerto (3306)
         'OPTIONS': {

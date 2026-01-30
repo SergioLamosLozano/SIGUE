@@ -25,13 +25,8 @@ urlpatterns = [
     # Ruta para el panel de administración de Django
     path('admin/', admin.site.urls),
     
-    # Rutas API para la gestión de eventos (incluyendo los endpoints principales)
-    # Se delega a event_management.urls
-    path('api/', include('event_management.urls')),
-    
-    # Rutas API para la gestión de usuarios (autenticación, registro)
-    # Se delega a users.urls
-    path('api/users/', include('users.urls')),
+    # Rutas API consolidadas en la app core
+    path('api/', include('core.urls')),
 ]
 
 # Configuración para servir archivos multimedia (MEDIA) en entorno de desarrollo.
