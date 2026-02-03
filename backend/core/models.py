@@ -56,6 +56,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('Estudiante', 'Estudiante'),
         ('Asistente', 'Asistente'),
         ('Docente', 'Docente'),
+        ('Coordinador', 'Coordinador'),
         ('Administrador', 'Administrador'),
     )
 
@@ -150,6 +151,62 @@ class Asistente(models.Model):
         return f"{self.nombre_completo} - {self.identificacion}"
 
 
+# ================================================================================
+# ACADEMIC PROGRAM MODELS (Unmanaged - uses existing DB tables)
+# ================================================================================
+
+class Programa(models.Model):
+    """
+    Programas académicos de la universidad.
+    Modelo NO GESTIONADO - mapea a tabla existente 'programas' en la BD.
+    """
+    id = models.IntegerField(primary_key=True)
+    descripcion = models.CharField(max_length=200, verbose_name="Descripción del Programa")
+    
+    class Meta:
+        managed = False  # No crear/modificar tabla - ya existe
+        db_table = 'programas'
+        verbose_name = "Programa Académico"
+        verbose_name_plural = "Programas Académicos"
+        ordering = ['descripcion']
+
+    def __str__(self):
+        return self.descripcion
+
+
+class EstudianteActivoUnivalle(models.Model):
+    """
+    Estudiantes activos de Univalle cargados desde Excel.
+    Modelo NO GESTIONADO - mapea a tabla existente 'estudiantes_activos_univalle'.
+    """
+    codigo_estudiante = models.CharField(max_length=50, primary_key=True, verbose_name="Código Estudiante")
+    nombre = models.CharField(max_length=255, verbose_name="Nombre Completo")
+    correo = models.EmailField(max_length=255, blank=True, null=True, verbose_name="Correo Electrónico")
+    programa = models.ForeignKey(
+        Programa, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='estudiantes',
+        db_column='programa_id',
+        verbose_name="Programa Académico"
+    )
+    
+    class Meta:
+        managed = False  # No crear/modificar tabla - ya existe
+        db_table = 'estudiantes_activos_univalle'
+        verbose_name = "Estudiante Activo"
+        verbose_name_plural = "Estudiantes Activos"
+        ordering = ['nombre']
+
+    def __str__(self):
+        return f"{self.nombre} ({self.codigo_estudiante})"
+
+
+# ================================================================================
+# EVENT MANAGEMENT MODELS
+# ================================================================================
+
 class Evento(models.Model):
     """
     Modelo principal que representa un Evento.
@@ -163,8 +220,26 @@ class Evento(models.Model):
     # Usuario que creó el evento (Staff/Admin)
     creado_por = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='eventos_creados')
     
-    # Imagen promocional
-    flyer = models.ImageField(upload_to='eventos/', blank=True, null=True, verbose_name='Flyer del Evento')
+    # Imagen promocional (almacenada como BLOB en la base de datos)
+    # Se guarda el contenido binario del archivo directamente en la BD para centralizar datos
+    flyer_data = models.BinaryField(
+        blank=True, 
+        null=True, 
+        verbose_name='Flyer del Evento (BLOB)',
+        help_text='Contenido binario de la imagen del flyer'
+    )
+    flyer_filename = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True,
+        verbose_name='Nombre del archivo del flyer'
+    )
+    flyer_content_type = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True,
+        verbose_name='Tipo de contenido del flyer (MIME type)'
+    )
     
     # Configuración de refrigerios
     requiere_refrigerio = models.BooleanField(default=False, verbose_name='¿Requiere Refrigerio?')
@@ -189,6 +264,14 @@ class Evento(models.Model):
         ('RECHAZADO', 'Rechazado'),
     ]
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='PENDIENTE', verbose_name='Estado del Evento')
+
+    # Programas académicos a los que va dirigido el evento (A quién va dirigido)
+    programas_dirigidos = models.ManyToManyField(
+        Programa,
+        blank=True,
+        related_name='eventos',
+        verbose_name="Programas Dirigidos"
+    )
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 

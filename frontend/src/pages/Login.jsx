@@ -244,6 +244,7 @@ const Login = () => {
                                 >
                                     <option value="Estudiante">Estudiante</option>
                                     <option value="Docente">Docente</option>
+                                    <option value="Coordinador">Coordinador</option>
                                     <option value="Asistente">Asistente</option>
                                 </select>
                             </div>

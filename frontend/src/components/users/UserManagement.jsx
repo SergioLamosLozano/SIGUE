@@ -10,11 +10,11 @@ import '../../styles/UserManagement.css';
  */
 const UserManagement = () => {
     const navigate = useNavigate();
-    
+
     // Estados de datos
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
-    
+
     // Estados de UI (Búsqueda y Paginación)
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -105,7 +105,7 @@ const UserManagement = () => {
 
     const handleDelete = async (user) => {
         const confirmed = await showConfirm(
-            'Eliminar Usuario', 
+            'Eliminar Usuario',
             `¿Estás seguro de eliminar a ${user.full_name}? Esta acción no se puede deshacer.`
         );
         if (!confirmed) return;
@@ -129,7 +129,7 @@ const UserManagement = () => {
                 // Modo Edición
                 const payload = { ...formData };
                 if (!payload.password) delete payload.password; // No enviar campo vacío si no se cambia pass
-                
+
                 await axios.patch(`${API_URL}${formData.id}/`, payload, authConfig);
                 showSuccess('Actualizado', 'Usuario actualizado correctamente');
             }
@@ -142,11 +142,11 @@ const UserManagement = () => {
 
     return (
         <div className="user-management-container">
-             {/* HEADER */}
-             <div className="user-header">
+            {/* HEADER */}
+            <div className="user-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <button 
-                        className="btn btn-secondary" 
+                    <button
+                        className="btn btn-secondary"
                         onClick={() => navigate('/admin-dashboard')}
                         title="Volver al Panel"
                     >
@@ -160,12 +160,12 @@ const UserManagement = () => {
             </div>
 
             <div className="user-table-card">
-                
+
                 {/* BARRA DE BÚSQUEDA */}
                 <div className="user-search-container">
-                    <input 
-                        type="text" 
-                        placeholder="🔍 Buscar por nombre, cédula o email..." 
+                    <input
+                        type="text"
+                        placeholder="🔍 Buscar por nombre, cédula o email..."
                         value={searchTerm}
                         onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                         className="search-input"
@@ -199,8 +199,8 @@ const UserManagement = () => {
                                     </td>
                                     <td>{user.dependency}</td>
                                     <td>
-                                        {user.is_active ? 
-                                            <span className="status-active">Activo</span> : 
+                                        {user.is_active ?
+                                            <span className="status-active">Activo</span> :
                                             <span className="status-inactive">Inactivo</span>
                                         }
                                     </td>
@@ -228,16 +228,16 @@ const UserManagement = () => {
                 {/* PAGINACIÓN */}
                 {totalPages > 1 && (
                     <div className="pagination">
-                         <button 
-                            className="btn btn-sm btn-secondary" 
+                        <button
+                            className="btn btn-sm btn-secondary"
                             disabled={currentPage === 1}
                             onClick={() => setCurrentPage(cp => cp - 1)}
                         >
                             Anterior
                         </button>
                         <span>Página {currentPage} de {totalPages}</span>
-                        <button 
-                            className="btn btn-sm btn-secondary" 
+                        <button
+                            className="btn btn-sm btn-secondary"
                             disabled={currentPage === totalPages}
                             onClick={() => setCurrentPage(cp => cp + 1)}
                         >
@@ -258,64 +258,65 @@ const UserManagement = () => {
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">
                                 <label>Identificación (ID/Cédula)</label>
-                                <input 
-                                    value={formData.id} 
-                                    onChange={e => setFormData({...formData, id: e.target.value})}
+                                <input
+                                    value={formData.id}
+                                    onChange={e => setFormData({ ...formData, id: e.target.value })}
                                     disabled={modalMode === 'edit'} // No se puede cambiar ID al editar
                                     required
                                 />
                             </div>
                             <div className="form-group">
                                 <label>Nombre Completo</label>
-                                <input 
-                                    value={formData.full_name} 
-                                    onChange={e => setFormData({...formData, full_name: e.target.value})}
+                                <input
+                                    value={formData.full_name}
+                                    onChange={e => setFormData({ ...formData, full_name: e.target.value })}
                                     required
                                 />
                             </div>
-                             <div className="form-group">
+                            <div className="form-group">
                                 <label>Correo Electrónico</label>
-                                <input 
+                                <input
                                     type="email"
-                                    value={formData.email} 
-                                    onChange={e => setFormData({...formData, email: e.target.value})}
+                                    value={formData.email}
+                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
                                 />
                             </div>
                             <div className="form-group">
                                 <label>Rol</label>
-                                <select 
-                                    value={formData.role} 
-                                    onChange={e => setFormData({...formData, role: e.target.value})}
-                                    className="form-group select" 
+                                <select
+                                    value={formData.role}
+                                    onChange={e => setFormData({ ...formData, role: e.target.value })}
+                                    className="form-group select"
                                     style={{ width: '100%', padding: '0.75rem', borderRadius: '4px', border: '1px solid #ddd' }}
                                 >
                                     <option value="Estudiante">Estudiante</option>
                                     <option value="Docente">Docente</option>
+                                    <option value="Coordinador">Coordinador</option>
                                     <option value="Asistente">Asistente (Admin Eventos)</option>
                                     <option value="Administrador">Administrador</option>
                                 </select>
                             </div>
-                             <div className="form-group">
+                            <div className="form-group">
                                 <label>Dependencia / Programa</label>
-                                <input 
-                                    value={formData.dependency} 
-                                    onChange={e => setFormData({...formData, dependency: e.target.value})}
+                                <input
+                                    value={formData.dependency}
+                                    onChange={e => setFormData({ ...formData, dependency: e.target.value })}
                                 />
                             </div>
                             <div className="form-group">
                                 <label>{modalMode === 'create' ? 'Contraseña' : 'Nueva Contraseña (Opcional)'}</label>
-                                <input 
+                                <input
                                     type="password"
-                                    value={formData.password} 
-                                    onChange={e => setFormData({...formData, password: e.target.value})}
+                                    value={formData.password}
+                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
                                     required={modalMode === 'create'}
                                 />
                             </div>
-                             <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <input 
+                            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <input
                                     type="checkbox"
-                                    checked={!formData.is_active} 
-                                    onChange={e => setFormData({...formData, is_active: !e.target.checked})}
+                                    checked={!formData.is_active}
+                                    onChange={e => setFormData({ ...formData, is_active: !e.target.checked })}
                                     style={{ width: 'auto' }}
                                 />
                                 <label style={{ margin: 0 }}>Desactivar Usuario (Bloquear Acceso)</label>

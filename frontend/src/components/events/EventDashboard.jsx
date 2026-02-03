@@ -11,17 +11,18 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 const EventDashboard = () => {
     const { id } = useParams(); // ID del evento desde la URL
     const navigate = useNavigate();
-    
+
     // Estados principales
     const [evento, setEvento] = useState(null);
     const [stats, setStats] = useState(null);
     const [inscritos, setInscritos] = useState([]);
     const [loading, setLoading] = useState(true);
-    
+
     // Estados de botones de acción
     const [generating, setGenerating] = useState(false);
     const [sending, setSending] = useState(false);
-    
+    const [sendingDiffusion, setSendingDiffusion] = useState(false);
+
     // Estados de filtrado y paginación
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -96,7 +97,7 @@ const EventDashboard = () => {
      */
     const handleEnviarEmails = async () => {
         const confirmed = await showConfirm(
-            'Enviar Correos', 
+            'Enviar Correos',
             '¿Enviar emails con los códigos QR a todos los inscritos? Esto puede tomar unos segundos.'
         );
         if (!confirmed) return;
@@ -139,13 +140,51 @@ const EventDashboard = () => {
         }
     };
 
+    /**
+     * Envía correos de difusión a estudiantes de los programas seleccionados.
+     */
+    const handleEnviarDifusion = async () => {
+        if (!evento.programas_dirigidos || evento.programas_dirigidos.length === 0) {
+            showError('Sin Programas', 'Este evento no tiene programas acédmicos asignados. Edita el evento para seleccionar "A quién va dirigido".');
+            return;
+        }
+
+        const programNames = evento.programas_dirigidos.map(p => p.descripcion).join(', ');
+        const confirmed = await showConfirm(
+            'Enviar Difusión',
+            `¿Enviar correos promocionales a todos los estudiantes activos de los siguientes programas?\n\n${programNames}\n\nEsto puede tomar varios segundos.`
+        );
+        if (!confirmed) return;
+
+        try {
+            setSendingDiffusion(true);
+            const res = await axios.post(`http://localhost:8000/api/admin/eventos/${id}/difusion/`, {}, authConfig);
+
+            if (res.data.errores && res.data.errores.length > 0) {
+                showError(
+                    'Difusión Parcial',
+                    `${res.data.message}\n\nEmails enviados: ${res.data.emails_enviados}/${res.data.total_estudiantes}\n\nErrores:\n${res.data.errores.slice(0, 5).join('\n')}`
+                );
+            } else {
+                showSuccess(
+                    '¡Difusión Enviada!',
+                    `Se enviaron ${res.data.emails_enviados} correos a estudiantes de ${res.data.programas.length} programa(s).`
+                );
+            }
+        } catch (error) {
+            showError('Error de Difusión', 'Error al enviar emails: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setSendingDiffusion(false);
+        }
+    };
+
     // --- CERTIFICADOS ---
 
     const handleGenerarCertificados = async (e) => {
         e.preventDefault();
-        
+
         const confirmed = await showConfirm(
-            'Generar Certificados', 
+            'Generar Certificados',
             'Esto generará certificados para todos los asistentes que marcaron asistencia y los enviará por correo. ¿Continuar?'
         );
         if (!confirmed) return;
@@ -156,10 +195,10 @@ const EventDashboard = () => {
             if (certTemplate) {
                 formData.append('plantilla', certTemplate);
             }
-            
+
             const res = await axios.post(
-                `http://localhost:8000/api/eventos/${id}/generar_certificados_masivo/`, 
-                formData, 
+                `http://localhost:8000/api/eventos/${id}/generar_certificados_masivo/`,
+                formData,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -167,15 +206,15 @@ const EventDashboard = () => {
                     }
                 }
             );
-            
+
             if (res.data.errors && res.data.errors.length > 0) {
-                 showError('Proceso Finalizado con Errores', `${res.data.message}\n\nErrores:\n${res.data.errors.join('\n')}`);
+                showError('Proceso Finalizado con Errores', `${res.data.message}\n\nErrores:\n${res.data.errors.join('\n')}`);
             } else {
                 showSuccess('¡Éxito!', res.data.message);
                 setShowCertModal(false);
                 setCertTemplate(null);
             }
-            
+
         } catch (error) {
             showError('Error', 'Error al generar certificados: ' + (error.response?.data?.error || error.message));
         } finally {
@@ -191,8 +230,8 @@ const EventDashboard = () => {
             }
 
             const res = await axios.post(
-                `http://localhost:8000/api/eventos/${id}/ver_previsualizacion_certificado/`, 
-                formData, 
+                `http://localhost:8000/api/eventos/${id}/ver_previsualizacion_certificado/`,
+                formData,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -213,7 +252,7 @@ const EventDashboard = () => {
     };
 
     // --- FILTRADO Y PAGINACIÓN ---
-    
+
     const filteredInscritos = inscritos.filter(ins => {
         const term = searchTerm.toLowerCase();
         return (
@@ -236,7 +275,7 @@ const EventDashboard = () => {
     };
 
     // --- PREPARACIÓN DE DATOS PARA GRÁFICOS ---
-    
+
     const chartData = stats && stats.asistencia_por_dependencia ? {
         labels: Object.keys(stats.asistencia_por_dependencia),
         datasets: [
@@ -281,6 +320,28 @@ const EventDashboard = () => {
                         </span>
                     </div>
                 )}
+
+                {/* A quién va dirigido - Programas */}
+                {evento.programas_dirigidos && evento.programas_dirigidos.length > 0 && (
+                    <div style={{ marginTop: '15px', padding: '10px 15px', background: 'rgba(255,255,255,0.15)', borderRadius: '8px' }}>
+                        <strong style={{ display: 'block', marginBottom: '8px' }}>🎓 Dirigido a:</strong>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                            {evento.programas_dirigidos.map(prog => (
+                                <span
+                                    key={prog.id}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.25)',
+                                        padding: '4px 12px',
+                                        borderRadius: '20px',
+                                        fontSize: '0.85rem'
+                                    }}
+                                >
+                                    {prog.descripcion}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* FILA DE ESTADÍSTICAS RÁPIDAS (KPIs) */}
@@ -297,7 +358,7 @@ const EventDashboard = () => {
                     <h3 style={{ fontSize: '2.5rem', margin: '0 0 10px', color: '#7b1fa2' }}>{Math.round(stats.porcentaje_asistencia)}%</h3>
                     <p style={{ color: '#666', margin: 0 }}>% Asistencia</p>
                 </div>
-                
+
                 {evento.requiere_refrigerio && (
                     <div className="card text-center">
                         <h3 style={{ fontSize: '2.5rem', margin: '0 0 10px', color: 'var(--warning-color)' }}>{stats.refrigerios_entregados}</h3>
@@ -307,22 +368,22 @@ const EventDashboard = () => {
             </div>
 
             {/* FILA DE ACCIONES */}
-            <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
-                gap: '15px', 
-                marginBottom: '30px' 
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '15px',
+                marginBottom: '30px'
             }}>
-                <button 
-                    className="btn btn-primary" 
+                <button
+                    className="btn btn-primary"
                     onClick={handleGenerarQRs}
                     disabled={generating}
-                    style={{  width: '100%', justifyContent: 'center', height: '100%', display: 'flex', alignItems: 'center' }}
+                    style={{ width: '100%', justifyContent: 'center', height: '100%', display: 'flex', alignItems: 'center' }}
                 >
                     {generating ? 'Generando...' : '🎟️ Generar QRs Faltantes'}
                 </button>
-                <button 
-                    className="btn btn-success" 
+                <button
+                    className="btn btn-success"
                     onClick={handleEnviarEmails}
                     disabled={sending}
                     style={{ width: '100%', justifyContent: 'center', height: '100%', display: 'flex', alignItems: 'center' }}
@@ -330,16 +391,16 @@ const EventDashboard = () => {
                     {sending ? 'Enviando...' : '📧 Enviar QRs por Email'}
                 </button>
 
-                <button 
-                    className="btn" 
+                <button
+                    className="btn"
                     style={{ background: '#f57c00', color: 'white', width: '100%', justifyContent: 'center', height: '100%', display: 'flex', alignItems: 'center' }}
                     onClick={() => setShowStats(true)}
                 >
                     📊 Estadísticas Avanzadas
                 </button>
 
-                <button 
-                    className="btn" 
+                <button
+                    className="btn"
                     style={{ background: '#0288d1', color: 'white', width: '100%', justifyContent: 'center', height: '100%', display: 'flex', alignItems: 'center' }}
                     onClick={() => setShowCertModal(true)}
                 >
@@ -347,9 +408,9 @@ const EventDashboard = () => {
                 </button>
 
                 {evento.asistencia_qr && (
-                     <button 
+                    <button
                         className="btn"
-                        style={{ background: '#7b1fa2', color: 'white', width: '100%', justifyContent: 'center', height: '100%', display: 'flex', alignItems: 'center' }} 
+                        style={{ background: '#7b1fa2', color: 'white', width: '100%', justifyContent: 'center', height: '100%', display: 'flex', alignItems: 'center' }}
                         onClick={() => navigate(`/admin-dashboard/event/${id}/scanner`)}
                     >
                         📸 Validar QRs (Escáner)
@@ -359,18 +420,38 @@ const EventDashboard = () => {
                 <button className="btn btn-secondary" onClick={handleExportarExcel} style={{ width: '100%', justifyContent: 'center', height: '100%', display: 'flex', alignItems: 'center' }}>
                     📊 Exportar Lista Asistentes
                 </button>
+
+                {/* Botón de Difusión - solo si hay programas dirigidos */}
+                {evento.programas_dirigidos && evento.programas_dirigidos.length > 0 && (
+                    <button
+                        className="btn"
+                        style={{
+                            background: 'linear-gradient(135deg, #e91e63 0%, #9c27b0 100%)',
+                            color: 'white',
+                            width: '100%',
+                            justifyContent: 'center',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center'
+                        }}
+                        onClick={handleEnviarDifusion}
+                        disabled={sendingDiffusion}
+                    >
+                        {sendingDiffusion ? '✉️ Enviando...' : '📣 Enviar Difusión'}
+                    </button>
+                )}
             </div>
 
             {/* CONTENIDO PRINCIPAL: LISTA O GRÁFICOS */}
             {!showStats ? (
                 <>
                     <h3>Lista de Asistentes</h3>
-                    
+
                     {/* Barra de Búsqueda */}
                     <div className="mb-3">
-                        <input 
-                            type="text" 
-                            placeholder="🔍 Buscar por nombre, cédula o email..." 
+                        <input
+                            type="text"
+                            placeholder="🔍 Buscar por nombre, cédula o email..."
                             value={searchTerm}
                             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                             className="form-control"
@@ -397,7 +478,7 @@ const EventDashboard = () => {
                                             <tr key={ins.id}>
                                                 <td>{ins.usuario.full_name}</td>
                                                 <td>{ins.usuario.id}</td>
-                                                <td>{ins.usuario.email || <span style={{color: '#999'}}>Sin email</span>}</td>
+                                                <td>{ins.usuario.email || <span style={{ color: '#999' }}>Sin email</span>}</td>
                                                 <td>{ins.usuario.role}</td>
                                                 <td>
                                                     {ins.asistio ? (
@@ -420,12 +501,12 @@ const EventDashboard = () => {
                             </table>
                         </div>
                     </div>
-                    
+
                     {/* Controles de Paginación */}
                     {totalPages > 1 && (
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginTop: '20px' }}>
-                            <button 
-                                className="btn btn-secondary btn-sm" 
+                            <button
+                                className="btn btn-secondary btn-sm"
                                 onClick={() => handlePageChange(currentPage - 1)}
                                 disabled={currentPage === 1}
                             >
@@ -434,8 +515,8 @@ const EventDashboard = () => {
                             <span style={{ fontWeight: 'bold' }}>
                                 Página {currentPage} de {totalPages}
                             </span>
-                            <button 
-                                className="btn btn-secondary btn-sm" 
+                            <button
+                                className="btn btn-secondary btn-sm"
                                 onClick={() => handlePageChange(currentPage + 1)}
                                 disabled={currentPage === totalPages}
                             >
@@ -448,20 +529,20 @@ const EventDashboard = () => {
                 /* VISTA DE ESTADÍSTICAS AVANZADAS */
                 <div className="card" style={{ marginTop: '20px', padding: '30px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <h3 style={{margin: 0}}>📊 Estadísticas de Asistencia por Dependencia</h3>
+                        <h3 style={{ margin: 0 }}>📊 Estadísticas de Asistencia por Dependencia</h3>
                         <button className="btn btn-secondary" onClick={() => setShowStats(false)}>
                             ⬅ Volver a Lista
                         </button>
                     </div>
 
-                    <div style={{display: 'flex', justifyContent: 'center', marginBottom: '30px', gap: '10px'}}>
-                        <button 
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '30px', gap: '10px' }}>
+                        <button
                             className={`btn ${chartType === 'pie' ? 'btn-primary' : 'btn-secondary'}`}
                             onClick={() => setChartType('pie')}
                         >
                             🥧 Gráfico de Pastel
                         </button>
-                        <button 
+                        <button
                             className={`btn ${chartType === 'bar' ? 'btn-primary' : 'btn-secondary'}`}
                             onClick={() => setChartType('bar')}
                         >
@@ -477,7 +558,7 @@ const EventDashboard = () => {
                                 <Bar data={chartData} options={{ maintainAspectRatio: false }} />
                             )
                         ) : (
-                            <p style={{marginTop: '50px', fontSize: '1.2rem'}}>No hay datos suficientes para generar gráficas.</p>
+                            <p style={{ marginTop: '50px', fontSize: '1.2rem' }}>No hay datos suficientes para generar gráficas.</p>
                         )}
                     </div>
                 </div>
@@ -492,11 +573,11 @@ const EventDashboard = () => {
                             {!generatingCerts && <button className="modal-close" onClick={() => setShowCertModal(false)}>✕</button>}
                         </div>
                         <form onSubmit={handleGenerarCertificados}>
-                             {/* ...Contenido del formulario... */}
-                             {/* (Se mantiene igual que el original, solo comentado en la cabecera del bloque) */}
-                            <div className="alert alert-info" style={{background: '#e3f2fd', color: '#0d47a1'}}>
-                                <p style={{margin: 0}}>ℹ️ <strong>Instrucciones:</strong></p>
-                                <ul style={{margin: '10px 0 0 20px', padding: 0}}>
+                            {/* ...Contenido del formulario... */}
+                            {/* (Se mantiene igual que el original, solo comentado en la cabecera del bloque) */}
+                            <div className="alert alert-info" style={{ background: '#e3f2fd', color: '#0d47a1' }}>
+                                <p style={{ margin: 0 }}>ℹ️ <strong>Instrucciones:</strong></p>
+                                <ul style={{ margin: '10px 0 0 20px', padding: 0 }}>
                                     <li>Se generarán certificados <strong>solo para los asistentes marcados como "Asistió"</strong>.</li>
                                     <li>Los certificados se enviarán automáticamente por correo.</li>
                                     <li>Puedes subir una plantilla PDF personalizada o usar la anterior.</li>
@@ -505,21 +586,21 @@ const EventDashboard = () => {
 
                             <div className="form-group">
                                 <label>Plantilla PDF (Opcional si ya existe una)</label>
-                                <input 
-                                    type="file" 
+                                <input
+                                    type="file"
                                     accept=".pdf"
                                     onChange={(e) => setCertTemplate(e.target.files[0])}
                                     disabled={generatingCerts}
                                 />
-                                <small style={{display: 'block', marginTop: '5px', color: '#666'}}>
+                                <small style={{ display: 'block', marginTop: '5px', color: '#666' }}>
                                     Sube un PDF donde quieras que se sobreponga el Nombre y Documento.
                                 </small>
                             </div>
 
                             <div className="modal-footer">
-                                <button 
-                                    type="button" 
-                                    className="btn btn-secondary" 
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
                                     onClick={() => handlePreviewCertificado()}
                                     disabled={generatingCerts}
                                     style={{ marginRight: 'auto', background: '#e0f7fa', color: '#006064', borderColor: '#b2ebf2' }}
@@ -527,16 +608,16 @@ const EventDashboard = () => {
                                     👁️ Vista Previa
                                 </button>
 
-                                <button 
-                                    type="button" 
-                                    className="btn btn-secondary" 
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
                                     onClick={() => setShowCertModal(false)}
                                     disabled={generatingCerts}
                                 >
                                     Cancelar
                                 </button>
-                                <button 
-                                    type="submit" 
+                                <button
+                                    type="submit"
                                     className="btn btn-primary"
                                     disabled={generatingCerts}
                                 >

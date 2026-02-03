@@ -32,7 +32,7 @@ body {
 .navbar {
   background-color: #1a1a1a;
   padding: 1rem 2rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .navbar h1 {
@@ -69,7 +69,7 @@ body {
   border-radius: 8px;
   padding: 2rem;
   margin-bottom: 1rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .form-group {
@@ -216,11 +216,11 @@ body {
   .navbar ul {
     gap: 1rem;
   }
-  
+
   .container {
     padding: 0 1rem;
   }
-  
+
   .table {
     font-size: 0.875rem;
   }

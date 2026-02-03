@@ -1,6 +1,6 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import CustomUser, Asistente, CodigoQR, Evento, Inscripcion
+from .models import CustomUser, Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle
 import random
 from django.core.mail import send_mail
 from django.conf import settings
@@ -169,19 +169,59 @@ class CodigoQRSerializer(serializers.ModelSerializer):
             return obj.asistente.nombre_completo
         return "Desconocido"
 
+
+# ================================================================================
+# PROGRAM & STUDENT SERIALIZERS
+# ================================================================================
+
+class ProgramaSerializer(serializers.ModelSerializer):
+    """Serializador para Programas Académicos."""
+    class Meta:
+        model = Programa
+        fields = ['id', 'descripcion']
+
+
+class EstudianteActivoSerializer(serializers.ModelSerializer):
+    """Serializador para Estudiantes Activos de Univalle."""
+    programa_nombre = serializers.CharField(source='programa.descripcion', read_only=True)
+    
+    class Meta:
+        model = EstudianteActivoUnivalle
+        fields = ['codigo_estudiante', 'nombre', 'correo', 'programa', 'programa_nombre']
+
 class EventoSerializer(serializers.ModelSerializer):
     """
     Serializador para Eventos.
     Incluye lógica para saber si el usuario actual ya está inscrito ('ya_inscrito').
+    El flyer se almacena como BLOB en la BD y se expone como base64 en la API.
     """
     creado_por_nombre = serializers.CharField(source='creado_por.full_name', read_only=True)
     ya_inscrito = serializers.SerializerMethodField()
+    
+    # Campos para programas dirigidos
+    programas_dirigidos = ProgramaSerializer(many=True, read_only=True)
+    programas_dirigidos_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Programa.objects.all(),
+        write_only=True,
+        source='programas_dirigidos',
+        required=False
+    )
+    
+    # Campo para recibir archivo de flyer en el request
+    flyer = serializers.FileField(write_only=True, required=False, allow_null=True)
+    
+    # Campo para exponer el flyer como base64 en el response  
+    flyer_base64 = serializers.SerializerMethodField(read_only=True)
+    has_flyer = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Evento
         fields = ['id', 'titulo', 'descripcion', 'fecha', 'fecha_fin', 'lugar', 'creado_por', 'creado_por_nombre', 'fecha_creacion', 'ya_inscrito',
-                 'flyer', 'requiere_refrigerio', 'cantidad_refrigerios', 'detalles_refrigerios', 'asistencia_qr', 'estado']
-        read_only_fields = ['creado_por', 'fecha_creacion', 'estado']
+                 'flyer', 'flyer_base64', 'has_flyer', 'flyer_filename', 'flyer_content_type',
+                 'requiere_refrigerio', 'cantidad_refrigerios', 'detalles_refrigerios', 'asistencia_qr', 'estado',
+                 'programas_dirigidos', 'programas_dirigidos_ids']
+        read_only_fields = ['creado_por', 'fecha_creacion', 'estado', 'flyer_filename', 'flyer_content_type']
 
     def get_ya_inscrito(self, obj):
         """Verifica si el usuario que hace la petición está inscrito en este evento."""
@@ -189,6 +229,43 @@ class EventoSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return Inscripcion.objects.filter(evento=obj, usuario=request.user).exists()
         return False
+    
+    def get_flyer_base64(self, obj):
+        """Devuelve el flyer como cadena base64 para mostrar en frontend."""
+        if obj.flyer_data:
+            import base64
+            return base64.b64encode(obj.flyer_data).decode('utf-8')
+        return None
+    
+    def get_has_flyer(self, obj):
+        """Indica si el evento tiene un flyer adjunto."""
+        return obj.flyer_data is not None and len(obj.flyer_data) > 0
+    
+    def create(self, validated_data):
+        """Procesa el archivo flyer y lo guarda como BLOB."""
+        flyer_file = validated_data.pop('flyer', None)
+        instance = super().create(validated_data)
+        
+        if flyer_file:
+            instance.flyer_data = flyer_file.read()
+            instance.flyer_filename = flyer_file.name
+            instance.flyer_content_type = flyer_file.content_type
+            instance.save()
+        
+        return instance
+    
+    def update(self, instance, validated_data):
+        """Actualiza el evento, incluyendo el flyer si se proporciona."""
+        flyer_file = validated_data.pop('flyer', None)
+        instance = super().update(instance, validated_data)
+        
+        if flyer_file:
+            instance.flyer_data = flyer_file.read()
+            instance.flyer_filename = flyer_file.name
+            instance.flyer_content_type = flyer_file.content_type
+            instance.save()
+        
+        return instance
 
 class InscripcionSerializer(serializers.ModelSerializer):
     """
