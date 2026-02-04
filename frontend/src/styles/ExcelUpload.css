@@ -1,0 +1,276 @@
+/* ========================================
+   EXCELUPLOAD.CSS - Estudiantes Activos Styles
+   Uses CSS variables from global.css
+   ======================================== */
+
+/* ===== PAGE WRAPPER ===== */
+.excel-upload-page {
+  width: 100%;
+  max-width: 100%;           /* Full width within container */
+  margin: 30px auto;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+/* ===== UPLOAD CARD ===== */
+.excel-upload-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+}
+
+.excel-upload-card__title {
+  margin: 0 0 16px;
+  color: var(--text-dark);
+  font-size: 1.25rem;
+}
+
+.excel-upload-card__description {
+  color: var(--text-gray);
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+/* ===== FILE INPUT ===== */
+.excel-upload-card__file-input {
+  width: 100%;
+  padding: 12px;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-light);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+}
+
+.excel-upload-card__file-input:hover {
+  border-color: var(--primary-color);
+}
+
+.excel-upload-card__file-info {
+  color: var(--info-color);
+  font-size: 0.9rem;
+  margin: 0 0 16px;
+}
+
+/* ===== SUBMIT BUTTON ===== */
+.excel-upload-card__submit {
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 1rem;
+}
+
+.excel-upload-card__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== RESULT BOX ===== */
+.excel-upload-result {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: var(--radius-md);
+}
+
+.excel-upload-result--success {
+  background: #e8f5e9;
+  border: 1px solid var(--success-color);
+}
+
+.excel-upload-result--error {
+  background: #ffebee;
+  border: 1px solid var(--error-color);
+}
+
+.excel-upload-result__title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.excel-upload-result__title--success {
+  color: #2e7d32;
+}
+
+.excel-upload-result__title--error {
+  color: #c62828;
+}
+
+.excel-upload-result__details {
+  font-size: 0.9rem;
+}
+
+.excel-upload-result__details p {
+  margin: 4px 0;
+}
+
+.excel-upload-result__warnings {
+  margin-top: 10px;
+}
+
+.excel-upload-result__warnings-title {
+  color: var(--warning-color);
+  margin: 0 0 4px;
+}
+
+.excel-upload-result__warnings-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.85rem;
+}
+
+/* ===== STUDENTS TABLE CARD ===== */
+.students-table-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.students-table-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.students-table-card__title {
+  margin: 0;
+  color: var(--text-dark);
+  font-size: 1.1rem;
+}
+
+.students-table-card__search {
+  padding: 10px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  width: 280px;
+  font-size: 0.9rem;
+}
+
+.students-table-card__search:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+/* ===== LOADING & EMPTY STATES ===== */
+.students-table-card__loading,
+.students-table-card__empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-gray);
+}
+
+.students-table-card__empty p {
+  margin: 0 0 8px;
+}
+
+.students-table-card__empty-hint {
+  font-size: 0.9rem;
+}
+
+/* ===== TABLE ===== */
+.students-table-card__wrapper {
+  overflow-x: auto;
+}
+
+.students-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.students-table thead tr {
+  background: var(--bg-light);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.students-table th,
+.students-table td {
+  padding: 12px;
+  text-align: left;
+}
+
+.students-table tbody tr {
+  border-bottom: 1px solid var(--border-light);
+}
+
+.students-table tbody tr:hover {
+  background: var(--bg-light);
+}
+
+.students-table__code {
+  font-weight: 500;
+}
+
+.students-table__email {
+  color: var(--info-color);
+}
+
+/* ===== PAGINATION ===== */
+.students-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.students-pagination__btn {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.students-pagination__btn:hover:not(:disabled) {
+  background: var(--bg-light);
+  border-color: var(--primary-color);
+}
+
+.students-pagination__btn:disabled {
+  background: var(--bg-light);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.students-pagination__info {
+  padding: 8px 16px;
+  font-weight: 500;
+  color: var(--text-dark);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 640px) {
+  .excel-upload-page {
+    padding: 0 15px;
+    margin: 20px auto;
+  }
+
+  .excel-upload-card,
+  .students-table-card {
+    padding: 16px;
+  }
+
+  .students-table-card__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .students-table-card__search {
+    width: 100%;
+  }
+
+  .students-table th,
+  .students-table td {
+    padding: 10px 8px;
+    font-size: 0.85rem;
+  }
+}

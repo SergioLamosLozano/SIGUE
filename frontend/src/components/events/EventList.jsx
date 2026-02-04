@@ -250,8 +250,8 @@ const EventList = ({ canCreate = false }) => {
     return (
         <div className="event-list-container">
             {/* HEADER DE LA SECCIÓN */}
-            <div className="event-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <div className="page-header-card">
+                <div className="page-header-card__left">
                     {isAdmin && (
                         <button
                             onClick={() => navigate('/admin-dashboard')}
@@ -261,16 +261,18 @@ const EventList = ({ canCreate = false }) => {
                             ⬅ Volver
                         </button>
                     )}
-                    <h2 style={{ margin: 0 }}>
-                        {isAdmin ? 'Gestión de Eventos' : 'Eventos y Actividades'}
+                    <h2 className="page-title">
+                        {isAdmin ? '📅 Gestión de Eventos' : '📅 Eventos y Actividades'}
                     </h2>
                 </div>
 
-                {canCreate && (
-                    <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                        ➕ Crear Nuevo Evento
-                    </button>
-                )}
+                <div className="page-header-card__right">
+                    {canCreate && (
+                        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                            ➕ Crear Nuevo Evento
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* TABS DE NAVEGACIÓN (DOCENTES Y ESTUDIANTES) */}

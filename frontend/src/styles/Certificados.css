@@ -1,44 +1,153 @@
+/* ========================================
+   CERTIFICADOS.CSS - Certificate Styles
+   Uses CSS variables from global.css
+   ======================================== */
+
+/* ===== CERTIFICATES PANEL ===== */
+.certificates-panel {
+    padding: 0px 20px;
+    max-width: 100%;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+.certificates-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    background: var(--white);
+    padding: 20px 25px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.certificates-header__left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.certificates-header__title {
+    margin: 0;
+    color: var(--text-dark);
+    font-size: 1.5rem;
+}
+
+.certificates-content {
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    padding: 40px;
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+}
+
+.certificates-content__icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    background: var(--primary-light);
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 30px;
+}
+
+.certificates-content__title {
+    color: var(--primary-color);
+    margin-bottom: 15px;
+    font-size: 1.5rem;
+}
+
+.certificates-content__description {
+    color: var(--text-gray);
+    max-width: 500px;
+    margin: 0 auto 30px;
+    line-height: 1.6;
+}
+
+/* ===== FEATURE CARDS ===== */
+.certificates-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 30px;
+}
+
+.certificates-feature-card {
+    padding: 25px;
+    background: var(--bg-light);
+    border-radius: var(--radius-lg);
+    transition: all 0.2s ease;
+}
+
+.certificates-feature-card--placeholder {
+    border: 2px dashed var(--border-color);
+    background: var(--bg-light);
+}
+
+.certificates-feature-card__icon {
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.certificates-feature-card__title {
+    color: var(--text-gray);
+    margin: 10px 0 0;
+    font-weight: 500;
+}
+
+.certificates-feature-card__status {
+    color: var(--border-color);
+    font-size: 0.85rem;
+}
+
+/* ===== LEGACY CONTAINER (for existing Certificados.jsx) ===== */
 .certificados-container {
     padding: 20px;
     max-width: 800px;
     margin: 0 auto;
-    background-color: #1a1a1a;
-    color: #fff;
+    background-color: var(--white);
+    color: var(--text-dark);
     min-height: 100vh;
 }
 
 .certificados-container h1,
 .certificados-container h2,
 .certificados-container h3 {
-    color: #fff;
+    color: var(--text-dark);
 }
 
 .actions {
-    background-color: #2a2a2a;
+    background-color: var(--bg-light);
     padding: 20px;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     margin-bottom: 20px;
     text-align: center;
-    border: 1px solid #444;
+    border: 1px solid var(--border-color);
 }
 
 .actions p {
-    color: #ccc;
+    color: var(--text-gray);
 }
 
 .actions code {
-    background-color: #333;
+    background-color: var(--border-light);
     padding: 2px 5px;
-    border-radius: 4px;
-    color: #e0e0e0;
+    border-radius: var(--radius-sm);
+    color: var(--text-dark);
 }
 
 .btn-enviar {
-    background-color: #3b82f6;
-    color: white;
+    background-color: var(--primary-color);
+    color: var(--text-light);
     padding: 12px 24px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 16px;
     margin-top: 15px;
@@ -46,22 +155,22 @@
 }
 
 .btn-enviar:hover {
-    background-color: #2563eb;
+    background-color: var(--primary-hover);
 }
 
 .btn-enviar:disabled {
-    background-color: #4b5563;
+    background-color: var(--text-gray);
     cursor: not-allowed;
-    color: #9ca3af;
+    color: var(--bg-light);
 }
 
 .error-message {
-    color: #fca5a5;
-    background-color: #450a0a;
+    color: var(--error-color);
+    background-color: #FEF2F2;
     padding: 15px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     margin-bottom: 20px;
-    border: 1px solid #7f1d1d;
+    border: 1px solid #FECACA;
 }
 
 .resultados {
@@ -73,57 +182,58 @@
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 15px;
     margin-bottom: 25px;
-    background-color: #2a2a2a;
+    background-color: var(--bg-light);
     padding: 20px;
-    border-radius: 8px;
-    border: 1px solid #444;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 
 .resumen p {
-    color: #ccc;
+    color: var(--text-gray);
     margin: 5px 0;
 }
 
 .resumen strong {
-    color: #fff;
+    color: var(--text-dark);
 }
 
 .lista-resultados {
     margin-bottom: 20px;
     padding: 20px;
-    border-radius: 8px;
-    background-color: #2a2a2a;
-    border: 1px solid #444;
+    border-radius: var(--radius-md);
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-color);
 }
 
 .lista-resultados.success {
-    border-left: 5px solid #10b981;
+    border-left: 5px solid var(--success-color);
 }
 
 .lista-resultados.success h3 {
-    color: #10b981;
+    color: var(--success-color);
 }
 
 .lista-resultados.warning {
-    border-left: 5px solid #f59e0b;
+    border-left: 5px solid var(--warning-color);
 }
 
 .lista-resultados.warning h3 {
-    color: #f59e0b;
+    color: var(--warning-color);
 }
 
 .lista-resultados.error {
-    border-left: 5px solid #ef4444;
+    border-left: 5px solid var(--error-color);
 }
 
 .lista-resultados.error h3 {
-    color: #ef4444;
+    color: var(--error-color);
 }
 
 .lista-resultados h3 {
     margin-top: 0;
     margin-bottom: 15px;
     font-size: 1.1rem;
+    color: var(--text-dark);
 }
 
 .lista-resultados ul {
@@ -134,32 +244,60 @@
     margin: 0;
 }
 
-/* Scrollbar styling for the list */
+/* Scrollbar styling */
 .lista-resultados ul::-webkit-scrollbar {
     width: 8px;
 }
 
 .lista-resultados ul::-webkit-scrollbar-track {
-    background: #333;
-    border-radius: 4px;
+    background: var(--bg-light);
+    border-radius: var(--radius-sm);
 }
 
 .lista-resultados ul::-webkit-scrollbar-thumb {
-    background: #555;
-    border-radius: 4px;
+    background: var(--border-color);
+    border-radius: var(--radius-sm);
 }
 
 .lista-resultados ul::-webkit-scrollbar-thumb:hover {
-    background: #666;
+    background: var(--text-gray);
 }
 
 .lista-resultados li {
     padding: 8px 0;
-    border-bottom: 1px solid #444;
-    color: #ccc;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-gray);
     font-size: 0.95rem;
 }
 
 .lista-resultados li:last-child {
     border-bottom: none;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 640px) {
+    .certificates-panel {
+        padding: 15px;
+    }
+
+    .certificates-header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+
+    .certificates-header__left {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .certificates-content {
+        padding: 20px;
+    }
+
+    .certificates-content__icon {
+        width: 80px;
+        height: 80px;
+        font-size: 2.5rem;
+    }
 }

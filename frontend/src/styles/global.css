@@ -1,48 +1,61 @@
 :root {
-  /* Color Palette - Institutional Red & White */
-  --primary-color: #D32F2F;
-  /* Institutional Red */
-  --primary-light: #FF6659;
-  /* Lighter Red */
-  --primary-dark: #9A0007;
-  /* Darker Red */
-  --secondary-color: #FFFFFF;
-  /* White */
-  --accent-color: #FFCDD2;
-  /* Very Light Red for backgrounds */
+  /* ========================================
+     PALETA DE COLORES - UNIVERSIDAD DEL VALLE
+     Identidad Corporativa Institucional
+     ======================================== */
 
-  --text-primary: #212121;
-  /* Dark Grey */
-  --text-secondary: #757575;
-  /* Grey */
-  --text-light: #ffffff;
-  /* White */
+  /* Colores Primarios - Rojo Univalle */
+  --primary-color: #d52b1e; /* Rojo Univalle institucional */
+  --primary-hover: #b91c1c; /* Rojo oscuro para hovers */
+  --primary-light: #fee2e2; /* Rojo muy suave para fondos de iconos */
+  --primary-dark: #991b1b; /* Rojo más oscuro para énfasis */
 
-  --background-body: #f5f5f5;
-  /* Light Grey Background */
-  --background-card: #ffffff;
-  /* White Card */
-  --background-input: #ffffff;
+  /* Colores de Texto */
+  --text-dark: #1f2937; /* Texto principal oscuro */
+  --text-gray: #6b7280; /* Texto secundario gris */
+  --text-light: #ffffff; /* Texto claro/blanco */
+  --text-primary: #1f2937; /* Alias para compatibilidad */
+  --text-secondary: #6b7280; /* Alias para compatibilidad */
 
-  --border-color: #e0e0e0;
+  /* Fondos */
+  --bg-light: #f3f4f6; /* Fondo gris claro */
+  --white: #ffffff; /* Blanco puro */
+  --background-body: #f3f4f6; /* Fondo del body */
+  --background-card: #ffffff; /* Fondo de tarjetas */
+  --background-input: #ffffff; /* Fondo de inputs */
 
-  --success-color: #388e3c;
-  --error-color: #d32f2f;
-  --warning-color: #ffa000;
-
-  /* Spacing & Radius */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-
+  /* Sombras */
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-hover:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* Bordes */
+  --border-color: #e5e7eb;
+  --border-light: #f3f4f6;
+
+  /* Colores de Estado */
+  --success-color: #16a34a; /* Verde éxito */
+  --error-color: #dc2626; /* Rojo error */
+  --warning-color: #f59e0b; /* Amarillo advertencia */
+  --info-color: #0284c7; /* Azul info */
+
+  /* Espaciado y Bordes Redondeados */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Colores secundarios (legacy - mantener compatibilidad) */
+  --secondary-color: #ffffff;
+  --accent-color: #fee2e2;
 }
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+  font-family: "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
   background-color: var(--background-body);
   color: var(--text-primary);
   line-height: 1.6;
@@ -81,15 +94,20 @@ a:hover {
 
 /* Navbar */
 .navbar {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--primary-color) 0%,
+    var(--primary-dark) 100%
+  );
   padding: 1rem 2rem;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 12px rgba(213, 43, 30, 0.25);
   color: white;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  /* Wraps on mobile */
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .navbar h1 {
@@ -212,7 +230,9 @@ a:hover {
   font-size: 1rem;
   color: var(--text-primary);
   background-color: var(--background-input);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   font-family: inherit;
 }
 

@@ -164,7 +164,7 @@ class Programa(models.Model):
     descripcion = models.CharField(max_length=200, verbose_name="Descripción del Programa")
     
     class Meta:
-        managed = False  # No crear/modificar tabla - ya existe
+        managed = True  # Create table if it doesn't exist
         db_table = 'programas'
         verbose_name = "Programa Académico"
         verbose_name_plural = "Programas Académicos"
@@ -193,7 +193,7 @@ class EstudianteActivoUnivalle(models.Model):
     )
     
     class Meta:
-        managed = False  # No crear/modificar tabla - ya existe
+        managed = True  # Create table if it doesn't exist
         db_table = 'estudiantes_activos_univalle'
         verbose_name = "Estudiante Activo"
         verbose_name_plural = "Estudiantes Activos"

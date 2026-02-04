@@ -143,8 +143,8 @@ const UserManagement = () => {
     return (
         <div className="user-management-container">
             {/* HEADER */}
-            <div className="user-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <div className="page-header-card">
+                <div className="page-header-card__left">
                     <button
                         className="btn btn-secondary"
                         onClick={() => navigate('/admin-dashboard')}
@@ -152,11 +152,13 @@ const UserManagement = () => {
                     >
                         ⬅ Volver
                     </button>
-                    <h2 style={{ margin: 0 }}>👤 Gestión de Usuarios</h2>
+                    <h2 className="page-title">👤 Gestión de Usuarios</h2>
                 </div>
-                <button className="btn btn-primary" onClick={handleOpenCreate}>
-                    ➕ Crear Nuevo Usuario
-                </button>
+                <div className="page-header-card__right">
+                    <button className="btn btn-primary" onClick={handleOpenCreate}>
+                        ➕ Crear Nuevo Usuario
+                    </button>
+                </div>
             </div>
 
             <div className="user-table-card">

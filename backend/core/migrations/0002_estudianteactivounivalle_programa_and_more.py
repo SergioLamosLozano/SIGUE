@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Estudiantes Activos',
                 'db_table': 'estudiantes_activos_univalle',
                 'ordering': ['nombre'],
-                'managed': False,
+                'managed': True,
             },
         ),
         migrations.CreateModel(
@@ -36,7 +36,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Programas Académicos',
                 'db_table': 'programas',
                 'ordering': ['descripcion'],
-                'managed': False,
+                'managed': True,
             },
         ),
         migrations.AlterField(

@@ -1,18 +1,15 @@
 /* UserManagement.css */
 
 .user-management-container {
+    width: 100%;
+    max-width: 100%;
+    margin: 30px auto;
+    padding: 0 20px;
     padding-bottom: 2rem;
+    box-sizing: border-box;
 }
 
-.user-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border-color, #e5e7eb);
-    margin-top: 1rem;
-}
+/* Legacy user-header removed - now using .page-header-card */
 
 .user-table-card {
     background: white;

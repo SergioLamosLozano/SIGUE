@@ -2,8 +2,10 @@
 
 .programas-container {
     padding: 30px 20px;
-    max-width: 900px;
+    max-width: 100%;
+    width: 100%;
     margin: 0 auto;
+    box-sizing: border-box;
 }
 
 /* Header - Simple and Clean */
@@ -47,7 +49,7 @@
 }
 
 .btn-add {
-    background: #7c3aed;
+    background: #D52B1E;
     color: white;
     border: none;
     padding: 12px 24px;
@@ -59,7 +61,7 @@
 }
 
 .btn-add:hover {
-    background: #6d28d9;
+    background: #B91C1C;
 }
 
 /* Table Container */
@@ -76,15 +78,15 @@
 }
 
 .programas-table th {
-    background-color: #faf5ff;
+    background-color: #FEF2F2;
     padding: 16px 24px;
     text-align: left;
     font-weight: 600;
-    color: #7c3aed;
+    color: #D52B1E;
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    border-bottom: 2px solid #ede9fe;
+    border-bottom: 2px solid #FEE2E2;
 }
 
 .programas-table td {
@@ -95,7 +97,7 @@
 }
 
 .programas-table tr:hover {
-    background-color: #faf5ff;
+    background-color: #FEF2F2;
 }
 
 .programas-table tr:last-child td {
@@ -104,7 +106,7 @@
 
 .id-cell {
     font-weight: 700;
-    color: #7c3aed;
+    color: #D52B1E;
     width: 100px;
     font-size: 1rem;
 }
@@ -121,8 +123,8 @@
 
 /* Action Buttons */
 .btn-edit {
-    background-color: #eef2ff;
-    color: #4f46e5;
+    background-color: #FEF2F2;
+    color: #D52B1E;
     border: none;
     padding: 8px 16px;
     border-radius: 6px;
@@ -133,7 +135,7 @@
 }
 
 .btn-edit:hover {
-    background-color: #e0e7ff;
+    background-color: #FEE2E2;
 }
 
 .btn-sm.btn-danger {
@@ -180,7 +182,7 @@
 }
 
 .modal-header {
-    background: #7c3aed;
+    background: #D52B1E;
     color: white;
     padding: 20px 24px;
     display: flex;
@@ -234,7 +236,7 @@
 
 .programa-name {
     font-size: 1.1rem;
-    color: #7c3aed;
+    color: #D52B1E;
 }
 
 .warning-text {
@@ -272,8 +274,8 @@
 
 .form-group input:focus {
     outline: none;
-    border-color: #7c3aed;
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    border-color: #D52B1E;
+    box-shadow: 0 0 0 3px rgba(213, 43, 30, 0.15);
 }
 
 .input-disabled {
@@ -317,7 +319,7 @@
 }
 
 .modal-footer .btn-primary {
-    background: #7c3aed;
+    background: #D52B1E;
     color: white;
     border: none;
     padding: 10px 20px;
@@ -327,7 +329,7 @@
 }
 
 .modal-footer .btn-primary:hover {
-    background: #6d28d9;
+    background: #B91C1C;
 }
 
 .modal-footer .btn-danger {

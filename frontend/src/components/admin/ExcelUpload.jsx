@@ -1,20 +1,24 @@
+/**
+ * ExcelUpload.jsx - Excel Student Upload Component
+ * 
+ * Allows administrators to upload Excel files with active students.
+ * Includes paginated table of enrolled students.
+ * Uses CSS classes from ExcelUpload.css
+ */
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { showSuccess, showError } from '../../services/alert';
+import '../../styles/ExcelUpload.css';
 
-/**
- * Componente para cargar estudiantes activos desde archivo Excel.
- * Incluye tabla paginada de estudiantes matriculados.
- * Solo accesible por administradores.
- */
 const ExcelUpload = () => {
     const navigate = useNavigate();
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [result, setResult] = useState(null);
 
-    // Estado para la tabla de estudiantes
+    // State for students table
     const [estudiantes, setEstudiantes] = useState([]);
     const [loading, setLoading] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
@@ -27,7 +31,7 @@ const ExcelUpload = () => {
         headers: { Authorization: `Bearer ${token}` }
     };
 
-    // Cargar estudiantes al montar y cuando cambia página o búsqueda
+    // Load students on mount and when page/search changes
     useEffect(() => {
         fetchEstudiantes();
     }, [currentPage, searchTerm]);
@@ -45,12 +49,10 @@ const ExcelUpload = () => {
                 authConfig
             );
 
-            // Handle paginated or non-paginated response
             if (res.data.results) {
                 setEstudiantes(res.data.results);
                 setTotalCount(res.data.count);
             } else {
-                // Non-paginated - handle client-side pagination
                 const allData = res.data;
                 setTotalCount(allData.length);
                 const start = (currentPage - 1) * pageSize;
@@ -105,11 +107,9 @@ const ExcelUpload = () => {
             showSuccess(`Carga completada: ${res.data.estudiantes_creados} nuevos, ${res.data.estudiantes_actualizados} actualizados`);
             setFile(null);
 
-            // Reset file input
             const fileInput = document.getElementById('excel-file-input');
             if (fileInput) fileInput.value = '';
 
-            // Recargar tabla de estudiantes
             setCurrentPage(1);
             fetchEstudiantes();
 
@@ -134,49 +134,47 @@ const ExcelUpload = () => {
     const totalPages = Math.ceil(totalCount / pageSize);
 
     return (
-        <div style={{ maxWidth: '1200px' }}>
-            {/* Botón Volver */}
-            <button onClick={() => navigate('/admin-dashboard')} className="btn btn-secondary mb-3">
-                ← Volver
-            </button>
+        <div className="excel-upload-page">
+            {/* Page Header Card */}
+            <div className="page-header-card">
+                <div className="page-header-card__left">
+                    <button 
+                        onClick={() => navigate('/admin-dashboard')} 
+                        className="btn btn-secondary"
+                    >
+                        ← Volver
+                    </button>
+                    <h2 className="page-title">🎓 Estudiantes Activos</h2>
+                </div>
+                <div className="page-header-card__right">
+                    {/* No action button for this page */}
+                </div>
+            </div>
 
-            {/* Sección de Carga de Excel */}
-            <div className="excel-upload-container" style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '24px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                marginBottom: '24px'
-            }}>
-                <h3 style={{ margin: '0 0 16px', color: '#333' }}>
+            {/* Excel Upload Section */}
+            <div className="excel-upload-card">
+                <h3 className="excel-upload-card__title">
                     📥 Cargar Estudiantes Activos
                 </h3>
 
-                <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '20px' }}>
+                <p className="excel-upload-card__description">
                     Sube un archivo Excel (.xlsx) con los datos de estudiantes activos.
                     Las columnas requeridas son: <strong>Código, Apellidos, Nombres, Email, Programa Académico</strong>.
                 </p>
 
                 <form onSubmit={handleUpload}>
-                    <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <div className="form-group mb-3">
                         <input
                             id="excel-file-input"
                             type="file"
                             accept=".xlsx,.xls"
                             onChange={handleFileChange}
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                border: '2px dashed #ddd',
-                                borderRadius: '8px',
-                                background: '#fafafa',
-                                cursor: 'pointer'
-                            }}
+                            className="excel-upload-card__file-input"
                         />
                     </div>
 
                     {file && (
-                        <p style={{ color: '#2196f3', fontSize: '0.9rem', margin: '0 0 16px' }}>
+                        <p className="excel-upload-card__file-info">
                             📎 Archivo seleccionado: {file.name}
                         </p>
                     )}
@@ -184,49 +182,29 @@ const ExcelUpload = () => {
                     <button
                         type="submit"
                         disabled={!file || uploading}
-                        className="btn btn-primary"
-                        style={{
-                            width: '100%',
-                            padding: '12px 24px',
-                            fontSize: '1rem',
-                            opacity: (!file || uploading) ? 0.6 : 1,
-                            cursor: (!file || uploading) ? 'not-allowed' : 'pointer'
-                        }}
+                        className="btn btn-primary excel-upload-card__submit"
                     >
                         {uploading ? '⏳ Cargando...' : '📤 Subir y Procesar'}
                     </button>
                 </form>
 
-                {/* Resultado de la carga */}
+                {/* Upload Result */}
                 {result && (
-                    <div style={{
-                        marginTop: '20px',
-                        padding: '16px',
-                        borderRadius: '8px',
-                        background: result.success ? '#e8f5e9' : '#ffebee',
-                        border: `1px solid ${result.success ? '#4caf50' : '#f44336'}`
-                    }}>
-                        <h4 style={{
-                            margin: '0 0 8px',
-                            color: result.success ? '#2e7d32' : '#c62828'
-                        }}>
+                    <div className={`excel-upload-result ${result.success ? 'excel-upload-result--success' : 'excel-upload-result--error'}`}>
+                        <h4 className={`excel-upload-result__title ${result.success ? 'excel-upload-result__title--success' : 'excel-upload-result__title--error'}`}>
                             {result.success ? '✅ Carga Exitosa' : '❌ Error en la Carga'}
                         </h4>
 
                         {result.success ? (
-                            <div style={{ fontSize: '0.9rem' }}>
-                                <p style={{ margin: '4px 0' }}>
-                                    • Estudiantes nuevos: <strong>{result.creados}</strong>
-                                </p>
-                                <p style={{ margin: '4px 0' }}>
-                                    • Estudiantes actualizados: <strong>{result.actualizados}</strong>
-                                </p>
+                            <div className="excel-upload-result__details">
+                                <p>• Estudiantes nuevos: <strong>{result.creados}</strong></p>
+                                <p>• Estudiantes actualizados: <strong>{result.actualizados}</strong></p>
                                 {result.errores.length > 0 && (
-                                    <div style={{ marginTop: '10px' }}>
-                                        <p style={{ color: '#f57c00', margin: '0 0 4px' }}>
+                                    <div className="excel-upload-result__warnings">
+                                        <p className="excel-upload-result__warnings-title">
                                             ⚠️ Advertencias ({result.errores.length}):
                                         </p>
-                                        <ul style={{ margin: '0', paddingLeft: '20px', fontSize: '0.85rem' }}>
+                                        <ul className="excel-upload-result__warnings-list">
                                             {result.errores.slice(0, 5).map((err, i) => (
                                                 <li key={i}>{err}</li>
                                             ))}
@@ -235,21 +213,16 @@ const ExcelUpload = () => {
                                 )}
                             </div>
                         ) : (
-                            <p style={{ margin: '0', fontSize: '0.9rem' }}>{result.message}</p>
+                            <p>{result.message}</p>
                         )}
                     </div>
                 )}
             </div>
 
-            {/* Tabla de Estudiantes Matriculados */}
-            <div style={{
-                background: 'white',
-                borderRadius: '12px',
-                padding: '24px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-            }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
-                    <h3 style={{ margin: 0, color: '#333' }}>
+            {/* Students Table */}
+            <div className="students-table-card">
+                <div className="students-table-card__header">
+                    <h3 className="students-table-card__title">
                         🎓 Estudiantes Matriculados ({totalCount})
                     </h3>
 
@@ -258,44 +231,44 @@ const ExcelUpload = () => {
                         placeholder="🔍 Buscar por nombre o código..."
                         value={searchTerm}
                         onChange={handleSearch}
-                        style={{
-                            padding: '10px 16px',
-                            border: '1px solid #ddd',
-                            borderRadius: '8px',
-                            width: '280px',
-                            fontSize: '0.9rem'
-                        }}
+                        className="students-table-card__search"
                     />
                 </div>
 
                 {loading ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                    <div className="students-table-card__loading">
                         ⏳ Cargando estudiantes...
                     </div>
                 ) : estudiantes.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                    <div className="students-table-card__empty">
                         <p>No hay estudiantes matriculados.</p>
-                        <p style={{ fontSize: '0.9rem' }}>Sube un archivo Excel para cargar estudiantes.</p>
+                        <p className="students-table-card__empty-hint">
+                            Sube un archivo Excel para cargar estudiantes.
+                        </p>
                     </div>
                 ) : (
                     <>
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                        <div className="students-table-card__wrapper">
+                            <table className="students-table">
                                 <thead>
-                                    <tr style={{ background: '#f5f5f5', borderBottom: '2px solid #ddd' }}>
-                                        <th style={{ padding: '12px', textAlign: 'left' }}>Código</th>
-                                        <th style={{ padding: '12px', textAlign: 'left' }}>Nombre</th>
-                                        <th style={{ padding: '12px', textAlign: 'left' }}>Correo</th>
-                                        <th style={{ padding: '12px', textAlign: 'left' }}>Programa</th>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Nombre</th>
+                                        <th>Correo</th>
+                                        <th>Programa</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {estudiantes.map((est, idx) => (
-                                        <tr key={est.id || idx} style={{ borderBottom: '1px solid #eee' }}>
-                                            <td style={{ padding: '12px', fontWeight: '500' }}>{est.codigo_estudiante}</td>
-                                            <td style={{ padding: '12px' }}>{est.nombre}</td>
-                                            <td style={{ padding: '12px', color: '#2196f3' }}>{est.correo || '-'}</td>
-                                            <td style={{ padding: '12px' }}>
+                                        <tr key={est.id || idx}>
+                                            <td className="students-table__code">
+                                                {est.codigo_estudiante}
+                                            </td>
+                                            <td>{est.nombre}</td>
+                                            <td className="students-table__email">
+                                                {est.correo || '-'}
+                                            </td>
+                                            <td>
                                                 {est.programa_nombre || est.programa?.descripcion || '-'}
                                             </td>
                                         </tr>
@@ -304,70 +277,39 @@ const ExcelUpload = () => {
                             </table>
                         </div>
 
-                        {/* Paginación */}
+                        {/* Pagination */}
                         {totalPages > 1 && (
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                gap: '8px',
-                                marginTop: '20px',
-                                flexWrap: 'wrap'
-                            }}>
+                            <div className="students-pagination">
                                 <button
                                     onClick={() => setCurrentPage(1)}
                                     disabled={currentPage === 1}
-                                    style={{
-                                        padding: '8px 12px',
-                                        border: '1px solid #ddd',
-                                        borderRadius: '4px',
-                                        background: currentPage === 1 ? '#f5f5f5' : 'white',
-                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
-                                    }}
+                                    className="students-pagination__btn"
                                 >
                                     ⏮️
                                 </button>
                                 <button
                                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage === 1}
-                                    style={{
-                                        padding: '8px 12px',
-                                        border: '1px solid #ddd',
-                                        borderRadius: '4px',
-                                        background: currentPage === 1 ? '#f5f5f5' : 'white',
-                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
-                                    }}
+                                    className="students-pagination__btn"
                                 >
                                     ◀️
                                 </button>
 
-                                <span style={{ padding: '8px 16px', fontWeight: '500' }}>
+                                <span className="students-pagination__info">
                                     Página {currentPage} de {totalPages}
                                 </span>
 
                                 <button
                                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                     disabled={currentPage === totalPages}
-                                    style={{
-                                        padding: '8px 12px',
-                                        border: '1px solid #ddd',
-                                        borderRadius: '4px',
-                                        background: currentPage === totalPages ? '#f5f5f5' : 'white',
-                                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
-                                    }}
+                                    className="students-pagination__btn"
                                 >
                                     ▶️
                                 </button>
                                 <button
                                     onClick={() => setCurrentPage(totalPages)}
                                     disabled={currentPage === totalPages}
-                                    style={{
-                                        padding: '8px 12px',
-                                        border: '1px solid #ddd',
-                                        borderRadius: '4px',
-                                        background: currentPage === totalPages ? '#f5f5f5' : 'white',
-                                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
-                                    }}
+                                    className="students-pagination__btn"
                                 >
                                     ⏭️
                                 </button>
