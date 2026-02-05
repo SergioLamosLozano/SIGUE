@@ -255,7 +255,10 @@ class Evento(models.Model):
     detalles_refrigerios = models.JSONField(default=dict, blank=True, verbose_name="Detalles de Refrigerios")
     
     # Plantilla PDF para generar certificados automáticos
-    plantilla_certificado = models.FileField(upload_to='plantillas_certificados/', blank=True, null=True, verbose_name='Plantilla de Certificado (PDF)')
+    plantilla_certificado = models.FileField(upload_to='plantillas_certificados/', blank=True, null=True, verbose_name='Plantilla de Certificado (Imagen/PDF)')
+    
+    # Configuración de Coordenadas (JSON) proveniente del CertificateDesigner
+    config_certificado = models.JSONField(default=dict, blank=True, null=True, verbose_name="Configuración del Certificado")
     
     # Workflow de Aprobación
     ESTADO_CHOICES = [
@@ -411,3 +414,29 @@ class CodigoQR(models.Model):
             
             return True
         return False
+
+
+class GeneratedCertificate(models.Model):
+    """
+    Certificado generado para un estudiante en un evento específico.
+    Se almacena como datos binarios (BLOB) en la base de datos para evitar uso de filesystem local.
+    """
+    usuario = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='certificados')
+    evento = models.ForeignKey(Evento, on_delete=models.CASCADE, related_name='certificados')
+    
+    # Almacenamiento binario del PDF
+    pdf_blob = models.BinaryField(verbose_name='Archivo PDF (BLOB)')
+    
+    filename = models.CharField(max_length=255, verbose_name='Nombre del Archivo')
+    content_type = models.CharField(max_length=100, default='application/pdf', verbose_name='Tipo de Contenido')
+    
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de Generación')
+
+    class Meta:
+        verbose_name = "Certificado Generado"
+        verbose_name_plural = "Certificados Generados"
+        ordering = ['-created_at']
+        unique_together = ('usuario', 'evento') # Un certificado por evento por usuario
+
+    def __str__(self):
+        return f"Certificado: {self.usuario.full_name} - {self.evento.titulo}"

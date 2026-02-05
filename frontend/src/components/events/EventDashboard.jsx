@@ -1,69 +1,58 @@
-/**
- * EventDashboard.jsx - Individual Event Management Dashboard
- * 
- * Displays event details, KPIs, action buttons, and attendee list.
- * Uses CSS classes from EventDashboard.css
- */
-
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
-import { showSuccess, showError, showConfirm, showToast } from '../../services/alert';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
+
+// Importamos tu instancia de API configurada (importante para que funcione el token)
+import api from '../../services/api'; 
+import { showSuccess, showError, showConfirm } from '../../services/alert';
 import '../../styles/EventDashboard.css';
 
-// Register chart components
+// Registrar componentes de gráficos
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
 const EventDashboard = () => {
     const { id } = useParams();
     const navigate = useNavigate();
 
-    // Main states
+    // --- ESTADOS PRINCIPALES ---
     const [evento, setEvento] = useState(null);
     const [stats, setStats] = useState(null);
     const [inscritos, setInscritos] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Action button states
+    // Estados de botones de acción
     const [generating, setGenerating] = useState(false);
     const [sending, setSending] = useState(false);
     const [sendingDiffusion, setSendingDiffusion] = useState(false);
 
-    // Filter and pagination states
+    // Filtros y Paginación
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 20;
 
-    // Modal states
-    const [showCertModal, setShowCertModal] = useState(false);
+    // Estados de Visualización
     const [showStats, setShowStats] = useState(false);
     const [chartType, setChartType] = useState('pie');
-    const [certTemplate, setCertTemplate] = useState(null);
-    const [generatingCerts, setGeneratingCerts] = useState(false);
 
-    // Auth config
-    const token = localStorage.getItem('token');
-    const authConfig = { headers: { Authorization: `Bearer ${token}` } };
-
-    // --- DATA LOADING ---
-
+    // --- CARGA DE DATOS ---
     const fetchAllData = async () => {
         try {
             setLoading(true);
-            const resEvento = await axios.get(`http://localhost:8000/api/eventos/${id}/`, authConfig);
+            // Usamos Promise.all para eficiencia
+            const [resEvento, resStats, resInscritos] = await Promise.all([
+                api.get(`/eventos/${id}/`),
+                api.get(`/eventos/${id}/estadisticas/`),
+                api.get(`/eventos/${id}/inscritos/`)
+            ]);
+
             setEvento(resEvento.data);
-
-            const resStats = await axios.get(`http://localhost:8000/api/eventos/${id}/estadisticas/`, authConfig);
             setStats(resStats.data);
-
-            const resInscritos = await axios.get(`http://localhost:8000/api/eventos/${id}/inscritos/`, authConfig);
             setInscritos(resInscritos.data);
 
         } catch (error) {
             console.error("Error fetching event data", error);
-            alert("Error al cargar datos del evento");
+            showError('Error', 'Error al cargar datos del evento');
         } finally {
             setLoading(false);
         }
@@ -73,7 +62,7 @@ const EventDashboard = () => {
         if (id) fetchAllData();
     }, [id]);
 
-    // --- MAIN ACTIONS ---
+    // --- ACCIONES (Lógica Original Restaurada) ---
 
     const handleGenerarQRs = async () => {
         const confirmed = await showConfirm('Generar QRs', '¿Estás seguro de generar códigos QR faltantes para todos los inscritos?');
@@ -81,7 +70,7 @@ const EventDashboard = () => {
 
         try {
             setGenerating(true);
-            const res = await axios.post(`http://localhost:8000/api/eventos/${id}/generar_qrs_masivo/`, {}, authConfig);
+            const res = await api.post(`/eventos/${id}/generar_qrs_masivo/`);
             showSuccess('¡Listo!', res.data.message);
             fetchAllData();
         } catch (error) {
@@ -97,7 +86,7 @@ const EventDashboard = () => {
 
         try {
             setSending(true);
-            const res = await axios.post(`http://localhost:8000/api/eventos/${id}/enviar_emails_evento/`, {}, authConfig);
+            const res = await api.post(`/eventos/${id}/enviar_emails_evento/`);
             if (res.data.error_count > 0 && res.data.error_details) {
                 showError('Atención', `${res.data.message}\n\nDetalles:\n${res.data.error_details.join('\n')}`);
             } else {
@@ -112,8 +101,7 @@ const EventDashboard = () => {
 
     const handleExportarExcel = async () => {
         try {
-            const res = await axios.get(`http://localhost:8000/api/eventos/${id}/exportar_asistentes_excel/`, {
-                headers: { Authorization: `Bearer ${token}` },
+            const res = await api.get(`/eventos/${id}/exportar_asistentes_excel/`, {
                 responseType: 'blob'
             });
 
@@ -131,22 +119,22 @@ const EventDashboard = () => {
 
     const handleEnviarDifusion = async () => {
         if (!evento.programas_dirigidos || evento.programas_dirigidos.length === 0) {
-            showError('Sin Programas', 'Este evento no tiene programas académicos asignados. Edita el evento para seleccionar "A quién va dirigido".');
+            showError('Sin Programas', 'Este evento no tiene programas académicos asignados.');
             return;
         }
 
         const programNames = evento.programas_dirigidos.map(p => p.descripcion).join(', ');
-        const confirmed = await showConfirm('Enviar Difusión', `¿Enviar correos promocionales a todos los estudiantes activos de los siguientes programas?\n\n${programNames}\n\nEsto puede tomar varios segundos.`);
+        const confirmed = await showConfirm('Enviar Difusión', `¿Enviar correos promocionales a estudiantes de:\n\n${programNames}?`);
         if (!confirmed) return;
 
         try {
             setSendingDiffusion(true);
-            const res = await axios.post(`http://localhost:8000/api/admin/eventos/${id}/difusion/`, {}, authConfig);
+            const res = await api.post(`/admin/eventos/${id}/difusion/`);
 
             if (res.data.errores && res.data.errores.length > 0) {
-                showError('Difusión Parcial', `${res.data.message}\n\nEmails enviados: ${res.data.emails_enviados}/${res.data.total_estudiantes}\n\nErrores:\n${res.data.errores.slice(0, 5).join('\n')}`);
+                showError('Difusión Parcial', `${res.data.message}\nErrores: ${res.data.errores.length}`);
             } else {
-                showSuccess('¡Difusión Enviada!', `Se enviaron ${res.data.emails_enviados} correos a estudiantes de ${res.data.programas.length} programa(s).`);
+                showSuccess('¡Difusión Enviada!', `Se enviaron ${res.data.emails_enviados} correos.`);
             }
         } catch (error) {
             showError('Error de Difusión', 'Error al enviar emails: ' + (error.response?.data?.error || error.message));
@@ -155,62 +143,13 @@ const EventDashboard = () => {
         }
     };
 
-    // --- CERTIFICATES ---
-
-    const handleGenerarCertificados = async (e) => {
-        e.preventDefault();
-        const confirmed = await showConfirm('Generar Certificados', 'Esto generará certificados para todos los asistentes que marcaron asistencia y los enviará por correo. ¿Continuar?');
-        if (!confirmed) return;
-
-        try {
-            setGeneratingCerts(true);
-            const formData = new FormData();
-            if (certTemplate) formData.append('plantilla', certTemplate);
-
-            const res = await axios.post(`http://localhost:8000/api/eventos/${id}/generar_certificados_masivo/`, formData, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
-            });
-
-            if (res.data.errors && res.data.errors.length > 0) {
-                showError('Proceso Finalizado con Errores', `${res.data.message}\n\nErrores:\n${res.data.errors.join('\n')}`);
-            } else {
-                showSuccess('¡Éxito!', res.data.message);
-                setShowCertModal(false);
-                setCertTemplate(null);
-            }
-        } catch (error) {
-            showError('Error', 'Error al generar certificados: ' + (error.response?.data?.error || error.message));
-        } finally {
-            setGeneratingCerts(false);
-        }
-    };
-
-    const handlePreviewCertificado = async () => {
-        try {
-            const formData = new FormData();
-            if (certTemplate) formData.append('plantilla', certTemplate);
-
-            const res = await axios.post(`http://localhost:8000/api/eventos/${id}/ver_previsualizacion_certificado/`, formData, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
-                responseType: 'blob'
-            });
-
-            const file = new Blob([res.data], { type: 'application/pdf' });
-            const fileURL = URL.createObjectURL(file);
-            window.open(fileURL, '_blank');
-        } catch (error) {
-            console.error(error);
-            showError('Error', 'No se pudo generar la vista previa. Asegúrate de haber subido una plantilla.');
-        }
-    };
-
-    // --- FILTERING & PAGINATION ---
+    // --- FILTRADO Y PAGINACIÓN ---
 
     const filteredInscritos = inscritos.filter(ins => {
         const term = searchTerm.toLowerCase();
         return (
-            ins.usuario.full_name.toLowerCase().includes(term) ||
-            ins.usuario.id.toLowerCase().includes(term) ||
+            ins.usuario.full_name?.toLowerCase().includes(term) ||
+            ins.usuario.id?.toString().includes(term) ||
             (ins.usuario.email && ins.usuario.email.toLowerCase().includes(term))
         );
     });
@@ -225,7 +164,7 @@ const EventDashboard = () => {
         if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
     };
 
-    // --- CHART DATA ---
+    // --- DATOS DE GRÁFICA ---
 
     const chartData = stats && stats.asistencia_por_dependencia ? {
         labels: Object.keys(stats.asistencia_por_dependencia),
@@ -241,14 +180,18 @@ const EventDashboard = () => {
         }],
     } : null;
 
-    if (loading) return <div className="loading">Cargando Dashboard del Evento...</div>;
+    if (loading) return <div className="loading">Cargando Dashboard...</div>;
     if (!evento) return <div className="alert alert-error">Evento no encontrado</div>;
 
     return (
         <div className="event-dashboard">
-            <button onClick={() => navigate('/admin-dashboard/events')} className="btn btn-secondary mb-3">
-                ← Volver a Eventos
-            </button>
+            
+            {/* 1. BOTÓN VOLVER (Restaurado FUERA del header) */}
+            <div style={{ marginBottom: '20px' }}>
+                <button onClick={() => navigate('/admin-dashboard/events')} className="btn btn-secondary">
+                    ← Volver a Eventos
+                </button>
+            </div>
 
             {/* EVENT HEADER */}
             <div className="event-dashboard__header">
@@ -306,32 +249,30 @@ const EventDashboard = () => {
                 )}
             </div>
 
-            {/* ACTION BUTTONS (4 columns) */}
+            {/* ACTION BUTTONS (Clean Grid - SIN CERTIFICADOS) */}
             <div className="event-dashboard__actions">
-                <button className="btn btn-primary event-dashboard__action-btn" onClick={handleGenerarQRs} disabled={generating}>
+                <button className="event-dashboard__action-btn" onClick={handleGenerarQRs} disabled={generating}>
                     {generating ? 'Generando...' : '🎟️ Generar QRs Faltantes'}
                 </button>
-                <button className="btn btn-success event-dashboard__action-btn" onClick={handleEnviarEmails} disabled={sending}>
+                <button className="event-dashboard__action-btn" onClick={handleEnviarEmails} disabled={sending}>
                     {sending ? 'Enviando...' : '📧 Enviar QRs por Email'}
                 </button>
-                <button className="btn event-dashboard__action-btn event-dashboard__action-btn--stats" onClick={() => setShowStats(true)}>
+                <button className="event-dashboard__action-btn" onClick={() => setShowStats(true)}>
                     📊 Estadísticas Avanzadas
                 </button>
-                <button className="btn event-dashboard__action-btn event-dashboard__action-btn--certs" onClick={() => setShowCertModal(true)}>
-                    🎓 Generar Certificados
-                </button>
-
+                
                 {evento.asistencia_qr && (
-                    <button className="btn event-dashboard__action-btn event-dashboard__action-btn--scanner" onClick={() => navigate(`/admin-dashboard/event/${id}/scanner`)}>
+                    <button className="event-dashboard__action-btn" onClick={() => navigate(`/admin-dashboard/event/${id}/scanner`)}>
                         📸 Validar QRs (Escáner)
                     </button>
                 )}
-                <button className="btn btn-secondary event-dashboard__action-btn" onClick={handleExportarExcel}>
+                
+                <button className="event-dashboard__action-btn" onClick={handleExportarExcel}>
                     📊 Exportar Lista Asistentes
                 </button>
 
                 {evento.programas_dirigidos && evento.programas_dirigidos.length > 0 && (
-                    <button className="btn event-dashboard__action-btn event-dashboard__action-btn--diffusion" onClick={handleEnviarDifusion} disabled={sendingDiffusion}>
+                    <button className="event-dashboard__action-btn" onClick={handleEnviarDifusion} disabled={sendingDiffusion}>
                         {sendingDiffusion ? '✉️ Enviando...' : '📣 Enviar Difusión'}
                     </button>
                 )}
@@ -437,46 +378,6 @@ const EventDashboard = () => {
                         ) : (
                             <p className="event-dashboard__no-data">No hay datos suficientes para generar gráficas.</p>
                         )}
-                    </div>
-                </div>
-            )}
-
-            {/* CERTIFICATES MODAL */}
-            {showCertModal && (
-                <div className="modal-overlay" onClick={() => !generatingCerts && setShowCertModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3>Generar Certificados de Asistencia</h3>
-                            {!generatingCerts && <button className="modal-close" onClick={() => setShowCertModal(false)}>✕</button>}
-                        </div>
-                        <form onSubmit={handleGenerarCertificados}>
-                            <div className="event-dashboard__modal-info">
-                                <p><strong>ℹ️ Instrucciones:</strong></p>
-                                <ul>
-                                    <li>Se generarán certificados <strong>solo para los asistentes marcados como "Asistió"</strong>.</li>
-                                    <li>Los certificados se enviarán automáticamente por correo.</li>
-                                    <li>Puedes subir una plantilla PDF personalizada o usar la anterior.</li>
-                                </ul>
-                            </div>
-
-                            <div className="form-group">
-                                <label>Plantilla PDF (Opcional si ya existe una)</label>
-                                <input type="file" accept=".pdf" onChange={(e) => setCertTemplate(e.target.files[0])} disabled={generatingCerts} />
-                                <small>Sube un PDF donde quieras que se sobreponga el Nombre y Documento.</small>
-                            </div>
-
-                            <div className="modal-footer">
-                                <button type="button" className="btn event-dashboard__preview-btn" onClick={() => handlePreviewCertificado()} disabled={generatingCerts}>
-                                    👁️ Vista Previa
-                                </button>
-                                <button type="button" className="btn btn-secondary" onClick={() => setShowCertModal(false)} disabled={generatingCerts}>
-                                    Cancelar
-                                </button>
-                                <button type="submit" className="btn btn-primary" disabled={generatingCerts}>
-                                    {generatingCerts ? 'Generando y Enviando...' : '🚀 Generar y Enviar'}
-                                </button>
-                            </div>
-                        </form>
                     </div>
                 </div>
             )}

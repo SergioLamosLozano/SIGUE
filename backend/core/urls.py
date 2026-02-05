@@ -16,8 +16,13 @@ from .views import (
     ProgramaViewSet,
     EstudianteActivoViewSet,
     CargarEstudiantesExcelView,
-    EnviarDifusionEventoView
+    EnviarDifusionEventoView,
+    UploadCertificateTemplateView,
+    GenerateBulkCertificatesView,
+    SendCertificatesBulkView
 )
+
+# ...
 
 # Router para generar automáticamente las URLs de los ViewSets
 router = DefaultRouter()
@@ -63,6 +68,15 @@ urlpatterns = [
     # Cargar estudiantes activos desde Excel
     path('admin/cargar-estudiantes/', CargarEstudiantesExcelView.as_view(), name='cargar_estudiantes'),
     
+    # Subir Plantilla de Certificado
+    path('certificates/upload/', UploadCertificateTemplateView.as_view(), name='upload_template'),
+
+    # Generar Certificados Masivos
+    path('certificates/generate-bulk/', GenerateBulkCertificatesView.as_view(), name='generate_bulk_certificates'),
+
+    # Enviar Certificados por Email (Masivo)
+    path('certificates/send-bulk/', SendCertificatesBulkView.as_view(), name='send_bulk_certificates'),
+
     # Enviar difusión de evento a estudiantes
     path('admin/eventos/<int:evento_id>/difusion/', EnviarDifusionEventoView.as_view(), name='enviar_difusion'),
     

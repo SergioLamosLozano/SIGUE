@@ -86,7 +86,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from .models import Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle
+from .models import Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle, GeneratedCertificate
 from .serializers import (
     AsistenteSerializer, CodigoQRSerializer, EventoSerializer, 
     InscripcionSerializer, ProgramaSerializer, EstudianteActivoSerializer
@@ -1344,3 +1344,295 @@ Universidad del Valle - SIGUE
             'programas': [p.descripcion for p in programas],
             'errores': errores[:10]  # Solo primeros 10 errores
         })
+
+# -----------------------------------------------------------------------------
+# CERTIFICADOS VIEW
+# -----------------------------------------------------------------------------
+
+class UploadCertificateTemplateView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        import json
+        print("Datos recibidos:", request.data) # Debug
+        
+        event_id = request.data.get('event')
+        file_obj = request.data.get('image')
+        # Frontend envía 'config_data' como string JSON
+        config_data_str = request.data.get('config_data')
+
+        if not event_id or not file_obj:
+            return Response({"error": "Faltan datos (evento o imagen)"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # LÓGICA DE GUARDADO:
+            # 1. Buscar el evento
+            evento = Evento.objects.get(id=event_id)
+            
+            # 2. Actualizar la plantilla en el evento
+            evento.plantilla_certificado = file_obj
+            
+            # 3. Guardar la configuración JSON si existe
+            if config_data_str:
+                try:
+                    evento.config_certificado = json.loads(config_data_str)
+                except json.JSONDecodeError:
+                    print("Error decodificando JSON de configuración")
+                    # No fallar del todo, pero loguear
+            
+            evento.save()
+            
+            return Response({"message": "Plantilla y configuración guardadas exitosamente", "id": evento.id}, status=status.HTTP_201_CREATED)
+            
+        except Evento.DoesNotExist:
+             return Response({"error": "Evento no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error subiendo plantilla: {e}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class GenerateBulkCertificatesView(APIView):
+    """
+    Genera certificados masivos para todos los asistentes (asistio=True) de un evento.
+    Usa la plantilla (Imagen) base y las coordenadas JSON guardadas en el evento.
+    Guarda los PDFs generados como BLOBs en la BD.
+    """
+    def post(self, request, *args, **kwargs):
+        import io
+        import json
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.utils import ImageReader
+        from django.core.files.base import ContentFile
+
+        event_id = request.data.get('event_id')
+        if not event_id:
+            return Response({"error": "Falta event_id"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            evento = Evento.objects.get(id=event_id)
+            if not evento.plantilla_certificado:
+                return Response({"error": "El evento no tiene plantilla configurada"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # BLINDAJE CONTRA CONFIGURACIÓN VACÍA
+            if not evento.config_certificado:
+                return Response({
+                    "error": "La plantilla existe pero NO TIENE CONFIGURACIÓN (Coordenadas). "
+                             "Por favor vuelve al Diseñador y dale 'Guardar' de nuevo para actualizarla."
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Obtener inscritos confirmados
+            inscripciones = Inscripcion.objects.filter(evento=evento, asistio=True).select_related('usuario')
+            if not inscripciones.exists():
+                return Response({"message": "No hay asistentes confirmados para este evento."}, status=status.HTTP_200_OK)
+
+            generated_count = 0
+            
+            # Obtener configuración (manejo robusto de JSON/Lista)
+            raw_config = evento.config_certificado or []
+            
+            # Normalizar a lista de campos
+            if isinstance(raw_config, str):
+                try:
+                    raw_config = json.loads(raw_config)
+                except:
+                    raw_config = []
+            
+            fields_config = []
+            if isinstance(raw_config, list):
+                fields_config = raw_config
+            elif isinstance(raw_config, dict):
+                # Si viene como objeto, buscamos 'fields' o intentamos convertir
+                fields_config = raw_config.get('fields', [])
+                if not fields_config and raw_config:
+                    # Fallback por si acaso es formato dict antiguo
+                    fields_config = [v for k, v in raw_config.items()]
+
+            # Cargar la imagen plantilla en memoria una sola vez
+            try:
+                plantilla_path = evento.plantilla_certificado.path # FileSystem path
+                bg_image = ImageReader(plantilla_path) 
+                img_w, img_h = bg_image.getSize()
+            except Exception as e:
+                return Response({"error": f"Error leyendo plantilla de imagen: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            for ins in inscripciones:
+                user = ins.usuario
+                
+                # Crear Buffer PDF
+                buffer = io.BytesIO()
+                c = canvas.Canvas(buffer, pagesize=(img_w, img_h))
+                
+                # 1. Dibujar Plantilla de Fondo
+                c.drawImage(bg_image, 0, 0, width=img_w, height=img_h)
+                
+                # 2. Dibujar Textos según Configuración
+                for field in fields_config:
+                    try:
+                        f_id = field.get('id', '')
+                        f_type = field.get('type', 'text')
+                        
+                        # --- LÓGICA DE INYECCIÓN DE DATOS REALES ---
+                        # 1. Definir texto por defecto (Placeholder o estático)
+                        default_text = str(field.get('text', ''))
+                        text_to_draw = default_text
+                        
+                        normalized_id = str(f_id).lower()
+                        normalized_text = default_text.lower()
+
+                        # 2. Reemplazo Dinámico (Prioridad Alta)
+                        # Buscamos coincidencias tanto en el ID como en el contenido del texto placeholder
+                        keys_nombre = ['nombre', 'name', 'student', 'estudiante']
+                        keys_id = ['cedula', 'id', 'documento', 'cc', 'identificacion']
+
+                        if any(x in normalized_id for x in keys_nombre) or any(k in normalized_text for k in keys_nombre):
+                            text_to_draw = user.full_name.upper()
+                        
+                        elif any(x in normalized_id for x in keys_id) or any(k in normalized_text for k in keys_id):
+                            text_to_draw = str(user.id)
+                        
+                        # Si no hay texto y no es imagen, saltar
+                        if not text_to_draw and f_type == 'text':
+                            continue
+
+                        # --- Coordenadas y Estilos (CORRECCIÓN VISUAL) ---
+                        # React envía porcentajes (0-100)
+                        x_pct = float(field.get('x', 0))
+                        y_pct = float(field.get('y', 0))
+                        
+                        if f_type == 'text':
+                            font_size = int(field.get('fontSize', 12))
+                            font_family = field.get('fontFamily', 'Helvetica')
+                            
+                            # Mapping fuentes
+                            rl_font = 'Helvetica-Bold'
+                            if 'Times' in font_family: rl_font = 'Times-Roman'
+                            elif 'Courier' in font_family: rl_font = 'Courier'
+                            
+                            c.setFont(rl_font, font_size)
+                            
+                            # Conversión a Puntos (Points) con Corrección de Baseline
+                            # X: Simple regla de tres
+                            x_pos = img_w * (x_pct / 100.0)
+                            
+                            # Y: Invertido (0 abajo) - Ajuste PRO (FontSize * 1.15)
+                            # Esto baja el texto para que no quede "flotando"
+                            y_pos = img_h - (img_h * (y_pct / 100.0)) - (font_size * 1.15)
+
+                            c.drawString(x_pos, y_pos, str(text_to_draw))
+                            
+                        # TODO: Lógica futura para imágenes (firmas) si f_type == 'image'
+                    
+                    except Exception as field_err:
+                        print(f"Error pintando campo {field}: {field_err}")
+                        continue
+                
+                c.showPage()
+                c.save()
+                
+                # 3. Guardar en Base de Datos (BLOB)
+                pdf_bytes = buffer.getvalue()
+                filename = f"Certificado_{user.id}_{evento.id}.pdf"
+                
+                # Update or Create
+                GeneratedCertificate.objects.update_or_create(
+                    usuario=user,
+                    evento=evento,
+                    defaults={
+                        'pdf_blob': pdf_bytes,
+                        'filename': filename,
+                        'content_type': 'application/pdf',
+                        'created_at': timezone.now()
+                    }
+                )
+                generated_count += 1
+                buffer.close()
+
+            # --- CORRECCIÓN CRÍTICA: RETORNO SEGURO ---
+            return Response({
+                "message": f"Proceso finalizado. {generated_count} certificados generados.",
+                "generated_count": generated_count,
+                "status": "success"
+            }, status=status.HTTP_200_OK)
+
+        except Evento.DoesNotExist:
+            return Response({"error": "Evento no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error generando certificados: {e}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class SendCertificatesBulkView(APIView):
+    """
+    Envía los certificados PDF almacenados en la BD (BLOB) por correo a los estudiantes.
+    - Usa 'EmailMessage' para adjuntar el binario.
+    - Asegura un asunto único para evitar anidamiento (Threading).
+    """
+    def post(self, request, *args, **kwargs):
+        from django.core.mail import EmailMessage
+        
+        event_id = request.data.get('event_id')
+        if not event_id:
+            return Response({"error": "Falta event_id"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Buscar certificados del evento
+        certificates = GeneratedCertificate.objects.filter(evento_id=event_id).select_related('usuario', 'evento')
+
+        if not certificates.exists():
+            return Response({"error": "No hay certificados generados para este evento. Genérelos primero."}, status=status.HTTP_400_BAD_REQUEST)
+
+        sent_count = 0
+        error_count = 0
+        errors = []
+        
+        for cert in certificates:
+            try:
+                user = cert.usuario
+                if not user.email:
+                    continue
+
+                # 1. ASUNTO ÚNICO (Rompe el hilo de Gmail)
+                # Al incluir el nombre del evento, logramos diferenciación básica.
+                subject = f"🎓 Certificado de Asistencia: {cert.evento.titulo}"
+                
+                # 2. CUERPO DEL CORREO
+                body = f"""
+Hola {user.full_name},
+
+Agradecemos sinceramente tu participación en el evento "{cert.evento.titulo}".
+
+Adjunto a este correo encontrarás tu certificado oficial de asistencia en formato PDF.
+
+Esperamos verte en nuestros próximos eventos.
+
+Atentamente,
+Universidad del Valle - Sistema SIGUE
+"""
+
+                # 3. CONSTRUCCIÓN DEL MENSAJE (Attach BLOB)
+                email = EmailMessage(
+                    subject=subject,
+                    body=body.strip(),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[user.email],
+                )
+
+                # Adjuntar el BLOB
+                # cert.pdf_blob es bytes (BinaryField), cert.filename es str
+                if cert.pdf_blob:
+                     email.attach(cert.filename, cert.pdf_blob, 'application/pdf')
+                     email.send(fail_silently=False)
+                     sent_count += 1
+                else:
+                    raise Exception("El certificado no tiene contenido binario (PDF vacío).")
+
+            except Exception as e:
+                error_count += 1
+                print(f"Error enviando certificado a {user.email}: {str(e)}")
+                errors.append(f"{user.email}: {str(e)}")
+                # Continuar con el siguiente
+
+        return Response({
+            "message": f"Proceso de envío finalizado.",
+            "sent_count": sent_count,
+            "error_count": error_count,
+            "details": errors
+        }, status=status.HTTP_200_OK)
