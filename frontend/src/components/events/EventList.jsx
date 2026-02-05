@@ -410,147 +410,78 @@ const EventList = ({ canCreate = false }) => {
                 </div>
             )}
 
-            {/* MODAL DE CREACIÓN (SOLO ADMIN) - Diseño de dos columnas */}
+            {/* MODAL DE CREACIÓN (SOLO ADMIN) - Diseño de dos columnas Refactorizado a CSS */}
             {showModal && (
                 <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{
+                    <div className="modal-content modal-content-custom" onClick={e => e.stopPropagation()} style={{
                         maxWidth: '900px',
                         width: '95%',
                         maxHeight: '90vh',
                         overflow: 'auto',
                         padding: '0'
                     }}>
-                        <div style={{
-                            background: 'linear-gradient(135deg, #c41e3a 0%, #9a1830 100%)',
-                            color: 'white',
-                            padding: '20px 25px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }}>
-                            <h3 style={{ margin: 0, fontSize: '1.4rem', color: 'white' }}>✨ Crear Nuevo Evento</h3>
-                            <button onClick={() => setShowModal(false)} style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'white',
-                                fontSize: '1.5rem',
-                                cursor: 'pointer'
-                            }}>✕</button>
+                        <div className="event-modal-header">
+                            <h3 className="event-modal-title">✨ Crear Nuevo Evento</h3>
+                            <button className="event-modal-close" onClick={() => setShowModal(false)}>✕</button>
                         </div>
-                        <div style={{ padding: '25px' }}>
+                        
+                        <div className="event-modal-body">
                             <form onSubmit={handleCreate}>
                                 {/* Layout de dos columnas */}
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                                    gap: '30px',
-                                    marginBottom: '25px'
-                                }}>
+                                <div className="event-form-grid">
                                     {/* COLUMNA IZQUIERDA */}
                                     <div>
-                                        <h4 style={{
-                                            margin: '0 0 20px',
-                                            color: '#c41e3a',
-                                            fontSize: '1.05rem',
-                                            borderBottom: '2px solid #c41e3a',
-                                            paddingBottom: '8px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px'
-                                        }}>
+                                        <h4 className="event-section-title">
                                             📋 Información del Evento
                                         </h4>
 
-                                        <div className="form-group" style={{ marginBottom: '16px' }}>
-                                            <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                        <div className="event-form-group">
+                                            <label className="event-label">
                                                 Título del Evento *
                                             </label>
                                             <input
+                                                className="event-input"
                                                 value={newEvent.titulo}
                                                 onChange={e => setNewEvent({ ...newEvent, titulo: e.target.value })}
                                                 required
                                                 placeholder="Ej: Día del Contador"
-                                                style={{
-                                                    padding: '12px 14px',
-                                                    fontSize: '0.95rem',
-                                                    borderRadius: '8px',
-                                                    border: '2px solid #e5e7eb',
-                                                    width: '100%',
-                                                    boxSizing: 'border-box',
-                                                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                                                    outline: 'none'
-                                                }}
-                                                onFocus={e => e.target.style.borderColor = '#c41e3a'}
-                                                onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                                             />
                                         </div>
 
-                                        <div className="form-group" style={{ marginBottom: '16px' }}>
-                                            <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                        <div className="event-form-group">
+                                            <label className="event-label">
                                                 Descripción
                                             </label>
                                             <textarea
+                                                className="event-textarea"
                                                 value={newEvent.descripcion}
                                                 onChange={e => setNewEvent({ ...newEvent, descripcion: e.target.value })}
                                                 placeholder="Describe los detalles del evento..."
-                                                style={{
-                                                    minHeight: '100px',
-                                                    padding: '12px 14px',
-                                                    fontSize: '0.95rem',
-                                                    borderRadius: '8px',
-                                                    border: '2px solid #e5e7eb',
-                                                    width: '100%',
-                                                    boxSizing: 'border-box',
-                                                    resize: 'vertical',
-                                                    outline: 'none'
-                                                }}
-                                                onFocus={e => e.target.style.borderColor = '#c41e3a'}
-                                                onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                                             />
                                         </div>
 
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                            <div className="form-group">
-                                                <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                        <div className="event-date-row">
+                                            <div className="event-form-group">
+                                                <label className="event-label">
                                                     📅 Fecha Inicio *
                                                 </label>
                                                 <input
+                                                    className="event-input"
                                                     type="datetime-local"
                                                     value={newEvent.fecha}
                                                     onChange={e => setNewEvent({ ...newEvent, fecha: e.target.value })}
                                                     required
-                                                    style={{
-                                                        padding: '10px 12px',
-                                                        fontSize: '0.9rem',
-                                                        borderRadius: '8px',
-                                                        border: '2px solid #e5e7eb',
-                                                        width: '100%',
-                                                        boxSizing: 'border-box',
-                                                        outline: 'none'
-                                                    }}
-                                                    onFocus={e => e.target.style.borderColor = '#c41e3a'}
-                                                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                                                 />
                                             </div>
-                                            <div className="form-group">
-                                                <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                            <div className="event-form-group">
+                                                <label className="event-label">
                                                     📅 Fecha Fin
                                                 </label>
                                                 <input
+                                                    className="event-input"
                                                     type="datetime-local"
                                                     value={newEvent.fecha_fin}
                                                     onChange={e => setNewEvent({ ...newEvent, fecha_fin: e.target.value })}
-                                                    style={{
-                                                        padding: '10px 12px',
-                                                        fontSize: '0.9rem',
-                                                        borderRadius: '8px',
-                                                        border: '2px solid #e5e7eb',
-                                                        width: '100%',
-                                                        boxSizing: 'border-box',
-                                                        outline: 'none'
-                                                    }}
-                                                    onFocus={e => e.target.style.borderColor = '#c41e3a'}
-                                                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                                                 />
                                             </div>
                                         </div>
@@ -558,54 +489,28 @@ const EventList = ({ canCreate = false }) => {
 
                                     {/* COLUMNA DERECHA */}
                                     <div>
-                                        <h4 style={{
-                                            margin: '0 0 20px',
-                                            color: '#c41e3a',
-                                            fontSize: '1.05rem',
-                                            borderBottom: '2px solid #c41e3a',
-                                            paddingBottom: '8px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px'
-                                        }}>
+                                        <h4 className="event-section-title">
                                             📍 Ubicación y Difusión
                                         </h4>
 
-                                        <div className="form-group" style={{ marginBottom: '16px' }}>
-                                            <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                        <div className="event-form-group">
+                                            <label className="event-label">
                                                 Lugar del Evento *
                                             </label>
                                             <input
+                                                className="event-input"
                                                 value={newEvent.lugar}
                                                 onChange={e => setNewEvent({ ...newEvent, lugar: e.target.value })}
                                                 required
                                                 placeholder="Ej: Auditorio Principal"
-                                                style={{
-                                                    padding: '12px 14px',
-                                                    fontSize: '0.95rem',
-                                                    borderRadius: '8px',
-                                                    border: '2px solid #e5e7eb',
-                                                    width: '100%',
-                                                    boxSizing: 'border-box',
-                                                    outline: 'none'
-                                                }}
-                                                onFocus={e => e.target.style.borderColor = '#c41e3a'}
-                                                onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                                             />
                                         </div>
 
-                                        <div className="form-group" style={{ marginBottom: '16px' }}>
-                                            <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                        <div className="event-form-group">
+                                            <label className="event-label">
                                                 🖼️ Flyer / Imagen Promocional
                                             </label>
-                                            <div style={{
-                                                border: '2px dashed #c41e3a',
-                                                borderRadius: '10px',
-                                                padding: '18px',
-                                                textAlign: 'center',
-                                                background: '#fef2f2',
-                                                cursor: 'pointer'
-                                            }}>
+                                            <div className="event-flyer-box">
                                                 <input
                                                     type="file"
                                                     accept="image/*"
@@ -615,12 +520,12 @@ const EventList = ({ canCreate = false }) => {
                                                 />
                                                 <label htmlFor="flyer-upload" style={{ cursor: 'pointer', display: 'block' }}>
                                                     {flyerFile ? (
-                                                        <div style={{ color: '#2e7d32' }}>
+                                                        <div className="flyer-content-success">
                                                             <span style={{ fontSize: '1.5rem' }}>✅</span>
                                                             <p style={{ margin: '8px 0 0', fontWeight: '500', fontSize: '0.9rem' }}>{flyerFile.name}</p>
                                                         </div>
                                                     ) : (
-                                                        <div style={{ color: '#666' }}>
+                                                        <div className="flyer-content-placeholder">
                                                             <span style={{ fontSize: '1.5rem' }}>📤</span>
                                                             <p style={{ margin: '8px 0 0', fontSize: '0.9rem' }}>Clic para seleccionar imagen</p>
                                                         </div>
@@ -628,43 +533,22 @@ const EventList = ({ canCreate = false }) => {
                                                 </label>
                                             </div>
                                         </div>
-
                                     </div>
                                 </div>
                                 {/* Fin del grid de dos columnas */}
 
                                 {/* A quién va dirigido - Selección de Programas */}
                                 {programas.length > 0 && (
-                                    <div className="modal-section">
-                                        <h4 className="modal-section-title">¿A quién va dirigido?</h4>
+                                    <div className="event-modal-section">
+                                        <h4 className="event-section-title">¿A quién va dirigido?</h4>
                                         <p style={{ fontSize: '0.85rem', color: '#666', margin: '0 0 10px' }}>
                                             Selecciona los programas académicos a los que va dirigido este evento:
                                         </p>
-                                        <div style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                                            gap: '8px',
-                                            maxHeight: '200px',
-                                            overflowY: 'auto',
-                                            padding: '10px',
-                                            border: '1px solid #ddd',
-                                            borderRadius: '8px',
-                                            background: '#f9f9f9'
-                                        }}>
+                                        <div className="programas-grid">
                                             {programas.map(programa => (
                                                 <label
                                                     key={programa.id}
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '8px',
-                                                        cursor: 'pointer',
-                                                        padding: '6px 10px',
-                                                        borderRadius: '6px',
-                                                        background: newEvent.programas_dirigidos_ids.includes(programa.id) ? '#e3f2fd' : 'white',
-                                                        border: newEvent.programas_dirigidos_ids.includes(programa.id) ? '1px solid #2196f3' : '1px solid #ddd',
-                                                        transition: 'all 0.2s'
-                                                    }}
+                                                    className={`programa-item ${newEvent.programas_dirigidos_ids.includes(programa.id) ? 'selected' : ''}`}
                                                 >
                                                     <input
                                                         type="checkbox"
@@ -695,18 +579,7 @@ const EventList = ({ canCreate = false }) => {
                                                 </p>
 
                                                 {/* Checkbox para enviar difusión automática */}
-                                                <label style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '10px',
-                                                    cursor: 'pointer',
-                                                    marginTop: '15px',
-                                                    padding: '12px 15px',
-                                                    background: newEvent.enviar_difusion ? '#e8f5e9' : '#fff3e0',
-                                                    border: `1px solid ${newEvent.enviar_difusion ? '#4caf50' : '#ff9800'}`,
-                                                    borderRadius: '8px',
-                                                    transition: 'all 0.2s'
-                                                }}>
+                                                <label className={`difusion-box ${newEvent.enviar_difusion ? 'active' : 'inactive'}`}>
                                                     <input
                                                         type="checkbox"
                                                         checked={newEvent.enviar_difusion}
@@ -733,8 +606,8 @@ const EventList = ({ canCreate = false }) => {
                                 )}
 
                                 {/* Opciones Avanzadas (Refrigerio, QR) */}
-                                <div className="modal-section">
-                                    <h4 className="modal-section-title">Opciones Adicionales</h4>
+                                <div className="event-modal-section">
+                                    <h4 className="event-section-title">Opciones Adicionales</h4>
 
                                     <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
                                         <div style={{ flex: 1, minWidth: '300px' }}>
@@ -755,6 +628,7 @@ const EventList = ({ canCreate = false }) => {
                                                     {newEvent.refrigerios_items.map((item) => (
                                                         <div key={item.id} className="refrigerio-item">
                                                             <input
+                                                                className="event-input"
                                                                 placeholder="Ej: Desayuno, Almuerzo"
                                                                 value={item.name}
                                                                 onChange={e => {
@@ -813,14 +687,9 @@ const EventList = ({ canCreate = false }) => {
                                     </div>
                                 </div>
 
-                                <div className="modal-footer" style={{ textAlign: 'center', marginTop: '20px' }}>
+                                <div className="modal-actions">
                                     <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
-                                    <button type="submit" className="btn btn-primary" style={{
-                                        marginLeft: '15px',
-                                        background: 'linear-gradient(135deg, #c41e3a 0%, #9a1830 100%)',
-                                        padding: '12px 30px',
-                                        fontSize: '1.1rem'
-                                    }}>✨ Crear Evento</button>
+                                    <button type="submit" className="btn btn-primary" style={{ minWidth: '150px' }}>✨ Crear Evento</button>
                                 </div>
                             </form>
                         </div>
@@ -832,4 +701,3 @@ const EventList = ({ canCreate = false }) => {
 };
 
 export default EventList;
-

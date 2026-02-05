@@ -37,9 +37,13 @@ const DashboardHeader = ({ title, homeLink = "/" }) => {
         <nav className="navbar dashboard-header">
             <div className="dashboard-header__left">
                 {homeLink && (
-                    <Link to={homeLink} className="dashboard-header__home-link" title="Inicio">
-                        🏠
-                    </Link>
+                <Link to={homeLink} className="dashboard-header__home-link" title="Inicio">
+                    <img 
+                      src="/univallelogo.png" 
+                      alt="Logo Univalle" 
+                      className="dashboard-header__logo" 
+                    />
+                </Link>
                 )}
                 <h1 className="dashboard-header__title">{title}</h1>
             </div>

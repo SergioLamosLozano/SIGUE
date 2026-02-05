@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import '../styles/Login.css';
 import { showSuccess, showError, showToast } from '../services/alert';
+import UnivalleCube from '../components/UnivalleCube';
 
 // Programas académicos disponibles para estudiantes
 const PROGRAMS = [
@@ -21,6 +22,9 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     
+    // ✨ NUEVO: Estado para mostrar/ocultar contraseña
+    const [showPassword, setShowPassword] = useState(false);
+
     // Hooks de Autenticación y Navegación
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -46,25 +50,20 @@ const Login = () => {
         id: '',
         email: '',
         role: 'Estudiante',
-        dependency: 'Contaduria Publica', // Valor por defecto para estudiantes
+        dependency: 'Contaduria Publica', 
         password: '',
         confirmPassword: '',
         verificationCode: ''
     });
-    const [verificationStep, setVerificationStep] = useState(false); // Controls if we show the register form or the code input
+    const [verificationStep, setVerificationStep] = useState(false);
 
-
-    /**
-     * Maneja el envío del formulario de Login.
-     */
+    // ... (Mantienes tus funciones handleLoginSubmit, handleRegisterSubmit, etc. intactas)
     const handleLoginSubmit = async (e) => {
         e.preventDefault();
         setError('');
         try {
             await login(id, password);
-             // Obtener usuario actualizado tras login exitoso
              const user = JSON.parse(localStorage.getItem('user'));
-             // Redirigir según el rol
              switch(user.role) {
                 case 'Administrador': navigate('/admin-dashboard'); break;
                 case 'Estudiante': navigate('/student-dashboard'); break;
@@ -77,16 +76,12 @@ const Login = () => {
         }
     };
 
-    /**
-     * Maneja el registro de nuevos usuarios.
-     */
     const handleRegisterSubmit = async (e) => {
         e.preventDefault();
         if (regData.password !== regData.confirmPassword) {
             showError("Error", "Las contraseñas no coinciden");
             return;
         }
-
         try {
             const payload = {
                 id: regData.id,
@@ -96,13 +91,9 @@ const Login = () => {
                 password: regData.password,
                 dependency: regData.role === 'Estudiante' ? regData.dependency : (regData.dependency || '')
             };
-
             await axios.post('http://localhost:8000/api/users/auth/register/', payload);
-            
-            // Éxito: Pasar al paso de verificación
             setVerificationStep(true);
             showToast("Código de verificación enviado a su correo", "info");
-            
         } catch (error) {
             console.error(error);
             showError("Error al registrar", error.response?.data?.detail || JSON.stringify(error.response?.data) || error.message);
@@ -116,25 +107,17 @@ const Login = () => {
                 id: regData.id,
                 code: regData.verificationCode
             });
-            
             showSuccess("¡Verificado!", "Cuenta verificada exitosamente. Ahora puedes iniciar sesión.");
             setShowRegister(false);
             setVerificationStep(false);
-            
-            // Autocompletar login
             setId(regData.id);
             setPassword('');
-            // Limpiar form
             setRegData({...regData, password: '', confirmPassword: '', verificationCode: ''});
-
         } catch (error) {
              showError("Error de verificación", error.response?.data?.error || "Código incorrecto");
         }
     };
 
-    /**
-     * Genera una contraseña segura sugerida.
-     */
     const suggestPassword = () => {
         const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
         let newPass = "";
@@ -162,17 +145,50 @@ const Login = () => {
                             placeholder="Ingrese su identificación"
                         />
                     </div>
+                    
+                    {/* ✨ NUEVO: Grupo de input de contraseña modificado con el ojito */}
                     <div className="form-group">
                         <label htmlFor="password">Contraseña</label>
-                        <input 
-                            type="password" 
-                            id="password" 
-                            value={password} 
-                            onChange={(e) => setPassword(e.target.value)} 
-                            required 
-                            placeholder="Ingrese su contraseña"
-                        />
+                        <div style={{ position: 'relative', width: '100%' }}>
+                            <input 
+                                type={showPassword ? "text" : "password"} // ✨ Cambia tipo dinámicamente
+                                id="password" 
+                                value={password} 
+                                onChange={(e) => setPassword(e.target.value)} 
+                                required 
+                                placeholder="Ingrese su contraseña"
+                                style={{ paddingRight: '40px' }} // ✨ Espacio para que el texto no tape el ícono
+                            />
+                            
+                            {/* ✨ Botón del Ojito */}
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '10px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: '#6b7280'
+                                }}
+                            >
+                                {showPassword ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                    </svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                )}
+                            </button>
+                        </div>
                     </div>
+                    
                     <button type="submit" className="login-btn">Ingresar</button>
                     
                     <div style={{ marginTop: '15px', textAlign: 'center' }}>
@@ -195,7 +211,7 @@ const Login = () => {
                 </form>
             </div>
 
-            {/* MODAL DE REGISTRO Y VERIFICACIÓN */}
+            {/* MODAL DE REGISTRO */}
             {showRegister && (
                 <div className="modal-overlay" onClick={() => setShowRegister(false)}>
                     <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
@@ -206,6 +222,7 @@ const Login = () => {
                         
                         {verificationStep ? (
                              <form onSubmit={handleVerifySubmit}>
+                                {/* ... código del formulario de verificación ... */}
                                 <div style={{textAlign: 'center', marginBottom: '20px'}}>
                                     <p>Hemos enviado un código a <strong>{regData.email}</strong></p>
                                 </div>
@@ -235,7 +252,7 @@ const Login = () => {
                              </form>
                         ) : (
                         <form onSubmit={handleRegisterSubmit}>
-                            <div className="form-group">
+                             <div className="form-group">
                                 <label>Rol</label>
                                 <select 
                                     value={regData.role}
@@ -310,7 +327,7 @@ const Login = () => {
                                     </small>
                                 </div>
                                 <input 
-                                    type="text" // Visible para ver la sugerencia, luego se puede ocultar si se implementa toggle
+                                    type="text" 
                                     value={regData.password}
                                     onChange={e => setRegData({...regData, password: e.target.value})}
                                     required
@@ -335,6 +352,9 @@ const Login = () => {
                     </div>
                 </div>
             )}
+
+            {/* CUBO FLOTANTE DE UNIVALLE */}
+            <UnivalleCube />
         </div>
     );
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import api from '../../services/api';
 import '../../styles/Certificados.css';
+import '../../styles/CertificateSender.css';
 
 const CertificateSender = ({ onBack }) => {
     const [events, setEvents] = useState([]);
@@ -12,7 +13,6 @@ const CertificateSender = ({ onBack }) => {
     useEffect(() => {
         const fetchEvents = async () => {
             try {
-                // setLoading(true); // Optional: if we want spinner for initial load
                 const response = await api.get('/eventos/');
                 
                 // Asegurar array y ordenar por fecha (más reciente primero)
@@ -112,27 +112,6 @@ const CertificateSender = ({ onBack }) => {
             });
             
             try {
-                // Nota: Usamos el endpoint existente de "enviar_emails_evento" o uno nuevo
-                // Asumimos que el usuario pidió '/api/certificates/send-bulk/' pero en urls no lo cree.
-                // Sin embargo, en core/views.py existe 'enviar_emails_evento' en EventoViewSet action.
-                // Usaré la ruta estándar REST para acciones: /api/eventos/{id}/enviar_emails_evento/
-                // OJO: El usuario pidió POST /api/certificates/send-bulk/
-                // Si ese endpoint no existe, usaré el action del viewset que SÍ existe.
-                
-                // Opción A: Usar endpoint action del EventoViewSet (Probado y existente)
-                // const res = await api.post(`/eventos/${selectedEventId}/enviar_emails_evento/`);
-                
-                // Opción B: Si el usuario insiste en la ruta nueva, habría que crearla.
-                // Pero como frontend engineer, debo usar lo que funciona.
-                // Voy a usar el endpoint propuesto por el usuario en el prompt, 
-                // PERO si falla (porque no lo hice en backend), caeré al action conocido si es necesario.
-                // El prompt dice: "POST /api/certificates/send-bulk/ (Asumimos este nuevo endpoint...)"
-                // Como NO creé ese endpoint en el paso anterior, fallará.
-                // VOY A USAR EL QUE SÍ EXISTE EN EL BACKEND: /api/eventos/{id}/enviar_emails_evento/
-                // O mejor aun, en el paso anterior creé GenerateBulk, pero no SendBulk separado.
-                // Sin embargo, existe 'enviar_emails_evento' en EventoViewSet (linea 511 views.py).
-                
-                // ACTUALIZACIÓN: Se ha creado el endpoint dedicado para envío de certificados '/certificates/send-bulk/'
                 const res = await api.post('/certificates/send-bulk/', {
                     event_id: selectedEventId
                 });
@@ -158,7 +137,7 @@ const CertificateSender = ({ onBack }) => {
             {/* Header */}
             <div className="page-header-card">
                 <div className="page-header-card__left">
-                    <button onClick={onBack} className="btn btn-secondary">
+                    <button onClick={onBack} className="btn-back">
                         ← Volver
                     </button>
                     <h2 className="page-title">🚀 Generación y Envío</h2>
@@ -166,29 +145,22 @@ const CertificateSender = ({ onBack }) => {
             </div>
 
             {/* Content Card */}
-            <div className="certificates-content" style={{maxWidth: '600px', margin: '0 auto', textAlign: 'left'}}>
-                <div style={{marginBottom: '30px', borderBottom: '1px solid #eee', paddingBottom: '20px'}}>
-                    <h3 style={{marginTop: 0, color: 'var(--text-dark)'}}>Panel de Control Masivo</h3>
-                    <p style={{color: 'var(--text-gray)'}}>
+            <div className="sender-content">
+                <div className="sender-intro">
+                    <h3 className="sender-title">Panel de Control Masivo</h3>
+                    <p className="sender-subtitle">
                         Seleccione un evento para gestionar el ciclo de vida de sus certificados.
                     </p>
                 </div>
 
                 {/* SELECTOR */}
-                <div className="form-group" style={{marginBottom: '30px'}}>
-                    <label style={{display: 'block', marginBottom: '8px', fontWeight: 'bold'}}>1. Seleccionar Evento:</label>
+                <div className="sender-form-group">
+                    <label className="sender-label">1. Seleccionar Evento:</label>
                     <select 
-                        className="form-control"
+                        className="sender-select"
                         value={selectedEventId}
                         onChange={(e) => setSelectedEventId(e.target.value)}
                         disabled={loading}
-                        style={{
-                            width: '100%', 
-                            padding: '12px', 
-                            borderRadius: '8px', 
-                            border: '1px solid #ccc',
-                            fontSize: '1rem'
-                        }}
                     >
                         <option value="">-- Elige un evento disponible --</option>
                         {events.map(ev => (
@@ -200,64 +172,29 @@ const CertificateSender = ({ onBack }) => {
                 </div>
 
                 {/* ACTIONS GRID */}
-                <label style={{display: 'block', marginBottom: '15px', fontWeight: 'bold'}}>2. Ejecutar Acciones:</label>
-                <div style={{
-                    display: 'grid', 
-                    gridTemplateColumns: '1fr 1fr', 
-                    gap: '20px',
-                    opacity: selectedEventId ? 1 : 0.5,
-                    pointerEvents: selectedEventId ? 'auto' : 'none',
-                    transition: 'opacity 0.3s'
-                }}>
+                <label className="sender-label" style={{marginBottom: '15px'}}>2. Ejecutar Acciones:</label>
+                <div className={`sender-action-grid ${!selectedEventId ? 'disabled' : ''}`}>
                     
                     {/* Generar Button */}
                     <button 
-                        className="btn-action-card"
+                        className="btn-action-card btn-action-generate"
                         onClick={handleGenerate}
                         disabled={loading}
-                        style={{
-                            padding: '20px',
-                            border: '2px solid #eee',
-                            borderRadius: '12px',
-                            background: 'white',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '10px',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.borderColor = '#333'}
-                        onMouseOut={(e) => e.currentTarget.style.borderColor = '#eee'}
                     >
-                        <span style={{fontSize: '2rem'}}>⚙️</span>
-                        <span style={{fontWeight: 'bold', color: '#333'}}>Generar (BD)</span>
-                        <small style={{color: '#666', textAlign: 'center'}}>Crea los PDFs y guárdalos en el sistema.</small>
+                        <span className="action-icon">⚙️</span>
+                        <span className="action-title">Generar (BD)</span>
+                        <small className="action-desc">Crea los PDFs y guárdalos en el sistema.</small>
                     </button>
 
                     {/* Enviar Button */}
                     <button 
-                        className="btn-action-card"
+                        className="btn-action-card btn-action-send"
                         onClick={handleSend}
                         disabled={loading}
-                        style={{
-                            padding: '20px',
-                            border: '2px solid #FEE2E2',
-                            borderRadius: '12px',
-                            background: '#FEF2F2',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '10px',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.borderColor = '#D52B1E'}
-                        onMouseOut={(e) => e.currentTarget.style.borderColor = '#FEE2E2'}
                     >
-                        <span style={{fontSize: '2rem'}}>✉️</span>
-                        <span style={{fontWeight: 'bold', color: '#D52B1E'}}>Enviar Email</span>
-                        <small style={{color: '#D52B1E', textAlign: 'center'}}>Manda los correos a los estudiantes.</small>
+                        <span className="action-icon">✉️</span>
+                        <span className="action-title">Enviar Email</span>
+                        <small className="action-desc">Manda los correos a los estudiantes.</small>
                     </button>
 
                 </div>

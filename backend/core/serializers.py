@@ -80,26 +80,37 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     """
     Serializador para que el usuario actualice su propio perfil.
+    Ahora requiere current_password para cambiar la contraseña.
     """
-    password = serializers.CharField(write_only=True, required=False) # Contraseña opcional en actualización
+    password = serializers.CharField(write_only=True, required=False)
+    current_password = serializers.CharField(write_only=True, required=False) # Nuevo campo
 
     class Meta:
         model = CustomUser
-        # El ID y el Rol son de solo lectura por seguridad (el usuario no puede auto-promoverse o cambiar su ID)
-        fields = ['id', 'full_name', 'email', 'role', 'dependency', 'password']
+        fields = ['id', 'full_name', 'email', 'role', 'dependency', 'password', 'current_password']
         read_only_fields = ['id', 'role']
 
-    def update(self, instance, validated_data):
-        """
-        Actualiza los datos del usuario. Si se provee password, se actualiza de forma segura.
-        """
-        password = validated_data.pop('password', None)
+    def validate(self, attrs):
+        # Si se envía una nueva contraseña, es OBLIGATORIO enviar la actual
+        if attrs.get('password'):
+            current_password = attrs.get('current_password')
+            if not current_password:
+                raise serializers.ValidationError({"current_password": "Debes ingresar tu contraseña actual para cambiarla."})
+            
+            # Verificar que la contraseña actual sea correcta
+            user = self.instance
+            if not user.check_password(current_password):
+                raise serializers.ValidationError({"current_password": "La contraseña actual es incorrecta."})
         
-        # Actualiza campos genéricos
+        return attrs
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        validated_data.pop('current_password', None) # Quitar current_password si existe
+        
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         
-        # Si hay nueva contraseña, usar set_password para encriptar
         if password:
             instance.set_password(password)
         

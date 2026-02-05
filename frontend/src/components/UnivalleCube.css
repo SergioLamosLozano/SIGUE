@@ -1,0 +1,117 @@
+/* UnivalleCube.css */
+
+/* 1. Rotación 3D del Cubo sobre sí mismo */
+@keyframes rotate3d {
+    0% { transform: rotateX(0) rotateY(0) rotateZ(0); }
+    100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg); }
+}
+
+/* 2. Trayectoria "Libre" por toda la pantalla (Screensaver style) */
+/* Usamos porcentajes de viewport (vw/vh) para recorrer toda el área */
+@keyframes floatFreely {
+  0%   { top: 10%; left: 10%; }
+  10%  { top: 30%; left: 80%; }
+  20%  { top: 85%; left: 60%; }
+  33%  { top: 40%; left: 10%; }
+  45%  { top: 10%; left: 40%; }
+  58%  { top: 70%; left: 20%; }
+  70%  { top: 90%; left: 90%; }
+  82%  { top: 20%; left: 70%; }
+  92%  { top: 50%; left: 50%; }
+  100% { top: 10%; left: 10%; }
+}
+
+
+/* Contenedor invisible que ocupa TODA la pantalla */
+.univalle-cube-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 5; /* Menor que el Login (.login-box es z-index 10) */
+    pointer-events: none; /* PERMITE CLIC A TRAVÉS DEL FONDO (para no bloquear inputs) */
+    overflow: hidden;
+}
+
+/* El bloque que se mueve por la pantalla */
+.univalle-cube-motion {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    /* Inicia la animación de movimiento */
+    animation: floatFreely 25s infinite linear;
+    pointer-events: auto; /* PERMITE CLIC EN EL CUBO */
+    cursor: pointer;
+    /* Transición suave al hacer hover */
+    transition: transform 0.3s;
+}
+
+/* El cubo 3D en sí (dentro del bloque en movimiento) */
+.univalle-cube {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    animation: rotate3d 10s infinite linear;
+}
+
+/* Pausar movimiento al hacer hover para facilitar el clic */
+.univalle-cube-motion:hover {
+    animation-play-state: paused; 
+}
+.univalle-cube-motion:hover .univalle-cube {
+    animation-play-state: paused;
+}
+
+/* ESTILOS DE LAS CARAS DEL CUBO */
+.univalle-cube-face {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+    /* Estilo Vidrio Rojizo */
+    background: rgba(213, 43, 30, 0.15); 
+    border: 2px solid rgba(213, 43, 30, 0.6);
+    box-shadow: 0 0 15px rgba(213, 43, 30, 0.3) inset;
+    border-radius: 12px;
+    backdrop-filter: blur(2px);
+    overflow: hidden;
+}
+
+.univalle-cube-face img {
+    width: 80%;
+    height: 80%;
+    object-fit: contain;
+    opacity: 0.9;
+    pointer-events: none;
+}
+
+/* Transformaciones para armar el cubo */
+.face-front  { transform: translateZ(50px); }
+.face-back   { transform: rotateY(180deg) translateZ(50px); }
+.face-right  { transform: rotateY(90deg) translateZ(50px); }
+.face-left   { transform: rotateY(-90deg) translateZ(50px); }
+.face-top    { transform: rotateX(90deg) translateZ(50px); }
+.face-bottom { transform: rotateX(-90deg) translateZ(50px); }
+
+/* Efecto de Brillo */
+.univalle-cube-face::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.4), transparent);
+    top: -100%;
+    left: -100%;
+    transition: all 0.5s ease;
+}
+
+.univalle-cube:hover .univalle-cube-face::before {
+    top: 100%;
+    left: 100%;
+    transition: 0s;
+}

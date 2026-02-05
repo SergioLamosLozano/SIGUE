@@ -40,7 +40,7 @@ const CertificatesPanel = () => {
                     </h3>
                     
                     <p className="certificates-content__description">
-                        Gestión end-to-end de certificados académicos. 
+                        Gestión de certificados académicos. 
                         Diseña plantillas, genera documentos masivos y consulta el historial.
                     </p>
 
