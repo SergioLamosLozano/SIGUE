@@ -1,3 +1,5 @@
+import zipfile
+import io
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework import generics
@@ -1636,3 +1638,63 @@ Universidad del Valle - Sistema SIGUE
             "error_count": error_count,
             "details": errors
         }, status=status.HTTP_200_OK)
+
+
+class CertificateViewSet(viewsets.ModelViewSet):
+    queryset = GeneratedCertificate.objects.all().order_by('-created_at')
+    from .serializers import GeneratedCertificateSerializer
+    serializer_class = GeneratedCertificateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = GeneratedCertificate.objects.all().order_by('-created_at')
+        
+        # Filter by Event
+        event_id = self.request.query_params.get('event_id')
+        if event_id:
+            queryset = queryset.filter(evento_id=event_id)
+        
+        # If not admin, only see own certificates
+        if user.role != 'Administrador':
+            queryset = queryset.filter(usuario=user)
+            
+        return queryset
+
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        certificate = self.get_object()
+        from django.http import HttpResponse
+        response = HttpResponse(certificate.pdf_blob, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename=\"{certificate.filename}\"'
+        return response
+
+class DownloadCertificatesZipView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        ids = request.data.get('certificate_ids', []) # Standardized to certificate_ids per user request
+        
+        if not ids:
+            return Response({"error": "No se seleccionaron certificados."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Buscar certificados
+        certificates = GeneratedCertificate.objects.filter(id__in=ids)
+        
+        if not certificates.exists():
+            return Response({"error": "No se encontraron certificados válidos."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Crear el archivo ZIP en memoria
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for cert in certificates:
+                if cert.pdf_blob:
+                    filename = cert.filename or f"certificado_{cert.id}.pdf"
+                    zip_file.writestr(filename, cert.pdf_blob)
+        
+        # Preparar respuesta
+        zip_buffer.seek(0)
+        from django.http import HttpResponse
+        response = HttpResponse(zip_buffer, content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="certificados_seleccionados.zip"'
+        return response

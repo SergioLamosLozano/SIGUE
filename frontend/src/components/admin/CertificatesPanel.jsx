@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import '../../styles/Certificados.css';
 import CertificateDesigner from './CertificateDesigner';
 import CertificateSender from './CertificateSender';
+import CertificateHistory from './CertificateHistory';
 
 const CertificatesPanel = () => {
     const navigate = useNavigate();
@@ -68,26 +69,36 @@ const CertificatesPanel = () => {
                             <small className="certificates-feature-card__status" style={{color: '#1a5f2a'}}>Generar y Enviar</small>
                         </div>
 
-                        <div className="certificates-feature-card certificates-feature-card--placeholder">
-                            <span className="certificates-feature-card__icon">⚙️</span>
-                            <p className="certificates-feature-card__title">Configuración</p>
-                            <small className="certificates-feature-card__status">Próximamente</small>
+                        {/* HISTORY CARD */}
+                        <div 
+                            className="certificates-feature-card"
+                            onClick={() => setView('history')}
+                            style={{ cursor: 'pointer', border: '1px solid #4B5563' }}
+                        >
+                            <span className="certificates-feature-card__icon">📂</span>
+                            <p className="certificates-feature-card__title">Historial y Descargas</p>
+                            <small className="certificates-feature-card__status" style={{color: '#4B5563'}}>Consulta certificados generados</small>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Main Content: DESIGNER */}
-            {view === 'designer' && (
-                <CertificateDesigner onBack={() => setView('menu')} />
-            )}
+                {/* Main Content: DESIGNER */}
+                {view === 'designer' && (
+                    <CertificateDesigner onBack={() => setView('menu')} />
+                )}
 
-            {/* Main Content: SENDER */}
-            {view === 'sender' && (
-                <CertificateSender onBack={() => setView('menu')} />
-            )}
-        </div>
-    );
-};
+                {/* Main Content: SENDER */}
+                {view === 'sender' && (
+                    <CertificateSender onBack={() => setView('menu')} />
+                )}
+
+                {/* Main Content: SENDER */}
+                {view === 'history' && (
+                    <CertificateHistory onBack={() => setView('menu')} />
+                )}
+            </div>
+        );
+    };
 
 export default CertificatesPanel;

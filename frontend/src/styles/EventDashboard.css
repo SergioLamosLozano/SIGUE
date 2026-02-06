@@ -281,3 +281,47 @@
     font-size: 1.2rem;
     color: var(--text-gray);
 }
+
+
+/* --- ESTILOS PARA EL HEADER CON IMAGEN REDONDA --- */
+
+/* Contenedor flexible para poner texto a la izq e imagen a la der */
+.header-content-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+}
+
+/* El texto ocupa el espacio disponible */
+.header-info-column {
+    flex: 1;
+}
+
+/* Estilos de la imagen circular */
+.event-flyer-circle {
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #d52b1e;
+    box-shadow: 0 10px 6px rgba(0, 0, 0, 0.2);
+    background-color: white;
+}
+
+/* En celulares (pantallas pequeñas), ponemos la imagen arriba */
+@media (max-width: 768px) {
+    .header-content-wrapper {
+        flex-direction: column-reverse;
+        text-align: center;
+    }
+    
+    .event-flyer-circle {
+        width: 150px;
+        height: 150px;
+    }
+    
+    .event-dashboard__programs-list {
+        justify-content: center;
+    }
+}

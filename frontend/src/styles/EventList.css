@@ -383,3 +383,28 @@
     padding-top: 20px;
     border-top: 1px solid #e5e7eb;
 }
+
+/* Clean Action Buttons */
+.event-card-btn {
+    background-color: #FFFFFF;
+    color: #374151;
+    border: 1px solid #E5E7EB;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    justify-content: center;
+}
+
+.event-card-btn:hover {
+    border-color: #D52B1E;
+    color: #D52B1E;
+    background-color: #FFFFFF;
+    box-shadow: 0 4px 6px rgba(213, 43, 30, 0.1);
+    transform: translateY(-2px);
+}

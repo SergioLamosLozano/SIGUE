@@ -193,30 +193,50 @@ const EventDashboard = () => {
                 </button>
             </div>
 
-            {/* EVENT HEADER */}
+            {/* EVENT HEADER CON IMAGEN CIRCULAR */}
             <div className="event-dashboard__header">
-                <h1 className="event-dashboard__title">{evento.titulo}</h1>
-                <p className="event-dashboard__info">
-                    📅 {new Date(evento.fecha).toLocaleString()} | 📍 {evento.lugar}
-                </p>
-                {evento.requiere_refrigerio && (
-                    <span className="event-dashboard__badge">
-                        🍿 {evento.cantidad_refrigerios} Refrigerios Disponibles
-                    </span>
-                )}
+                <div className="header-content-wrapper">
+                    
+                    {/* COLUMNA IZQUIERDA: INFORMACIÓN */}
+                    <div className="header-info-column">
+                        <h1 className="event-dashboard__title">{evento.titulo}</h1>
+                        <p className="event-dashboard__info">
+                            📅 {new Date(evento.fecha).toLocaleString()} | 📍 {evento.lugar}
+                        </p>
+                        {evento.requiere_refrigerio && (
+                            <span className="event-dashboard__badge">
+                                🍿 {evento.cantidad_refrigerios} Refrigerios Disponibles
+                            </span>
+                        )}
 
-                {evento.programas_dirigidos && evento.programas_dirigidos.length > 0 && (
-                    <div className="event-dashboard__programs">
-                        <strong className="event-dashboard__programs-label">🎓 Dirigido a:</strong>
-                        <div className="event-dashboard__programs-list">
-                            {evento.programas_dirigidos.map(prog => (
-                                <span key={prog.id} className="event-dashboard__program-tag">
-                                    {prog.descripcion}
-                                </span>
-                            ))}
-                        </div>
+                        {evento.programas_dirigidos && evento.programas_dirigidos.length > 0 && (
+                            <div className="event-dashboard__programs">
+                                <strong className="event-dashboard__programs-label">🎓 Dirigido a:</strong>
+                                <div className="event-dashboard__programs-list">
+                                    {evento.programas_dirigidos.map(prog => (
+                                        <span key={prog.id} className="event-dashboard__program-tag">
+                                            {prog.descripcion}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                )}
+
+                    {/* COLUMNA DERECHA: FLYER REDONDO */}
+                    {/* COLUMNA DERECHA: FLYER REDONDO (Versión Base64) */}
+                    {evento.flyer_base64 && (
+                        <div className="header-image-column">
+                            <img 
+                                /* Construimos la fuente de la imagen Base64 igual que en tu lista */
+                                src={`data:${evento.flyer_content_type || 'image/png'};base64,${evento.flyer_base64}`}
+                                alt={`Flyer de ${evento.titulo}`} 
+                                className="event-flyer-circle"
+                                onError={(e) => e.target.style.display = 'none'} 
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* KPI STATS ROW */}

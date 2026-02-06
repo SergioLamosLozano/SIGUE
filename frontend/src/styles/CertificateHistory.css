@@ -1,0 +1,188 @@
+/* CertificateHistory.css - Clean Card Design */
+
+.history-container {
+    padding: 20px;
+    background-color: #f3f4f6; /* Gray background for page */
+    min-height: 100vh;
+}
+
+/* Page Header (Title + Back Button) */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.history-title {
+    font-size: 1.5rem;
+    color: #111827;
+    margin: 0;
+    font-weight: 700;
+}
+
+/* Main White Card */
+.history-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    padding: 24px;
+    border: 1px solid #e5e7eb;
+}
+
+/* Filters Bar */
+.history-filters {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 250px;
+}
+
+.filter-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.style-input {
+    padding: 10px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background-color: #ffffff;
+    transition: all 0.2s;
+    outline: none;
+    width: 100%;
+}
+
+.style-input:focus {
+    border-color: #D52B1E;
+    box-shadow: 0 0 0 3px rgba(213, 43, 30, 0.1);
+}
+
+/* Bulk Actions Bar */
+.bulk-actions-bar {
+    background-color: #fef2f2; /* Light red/pink background */
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 12px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    animation: fadeIn 0.3s ease;
+}
+
+.bulk-actions-bar span {
+    font-weight: 600;
+}
+
+.actions-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-secondary {
+    background-color: white;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    background-color: #f9fafb;
+    border-color: #9ca3af;
+}
+
+/* Modern Table */
+.table-responsive {
+    overflow-x: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+.modern-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    min-width: 600px;
+}
+
+.modern-table thead {
+    background-color: #f9fafb;
+}
+
+.modern-table th {
+    padding: 12px 24px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    letter-spacing: 0.05em;
+}
+
+.modern-table td {
+    padding: 16px 24px;
+    border-bottom: 1px solid #f3f4f6;
+    color: #374151;
+    font-size: 0.95rem;
+}
+
+.modern-table tr:last-child td {
+    border-bottom: none;
+}
+
+.modern-table tr:hover {
+    background-color: #f9fafb;
+}
+
+.modern-table tr.row-selected {
+    background-color: #fff1f0 !important; /* Rojo muy suave al seleccionar */
+}
+
+/* Utilities */
+.font-medium { font-weight: 600; color: #111827; }
+.text-center { text-align: center; }
+.p-5 { padding: 2rem; }
+
+/* Icon Button */
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+.btn-icon:hover {
+    background-color: #e5e7eb;
+}
+
+/* Checkbox */
+input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #D52B1E;
+    cursor: pointer;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}

@@ -201,7 +201,7 @@ const CertificateDesigner = ({ onBack }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexGrow: 1 }}>
           <button onClick={onBack} className="btn-back">← Volver</button>
           <div style={{display: 'flex', flexDirection: 'column'}}>
-            <h2 style={{ margin: 0, fontSize: '1.3rem' }}>Diseñador v3.0 (Responsive)</h2>
+            <h2 style={{ margin: 0, fontSize: '1.5rem' }}>🎨 Diseñador de Certificados</h2>
             {loading && <small style={{color: '#666'}}>Cargando eventos...</small>}
           </div>
         </div>

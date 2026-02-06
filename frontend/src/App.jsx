@@ -25,6 +25,7 @@ import UserManagement from './components/users/UserManagement'
 import ExcelUpload from './components/admin/ExcelUpload'
 import ProgramasManagement from './components/admin/ProgramasManagement'
 import CertificatesPanel from './components/admin/CertificatesPanel'
+import CertificateHistory from './components/admin/CertificateHistory'
 
 /**
  * DashboardHeader Component
@@ -227,6 +228,12 @@ function App() {
                                 <div className="container">
                                     <DashboardHeader title="Gestión de Certificados" homeLink="/admin-dashboard" />
                                     <CertificatesPanel />
+                                </div>
+                            } />
+                            <Route path="/admin-dashboard/certificates/history" element={
+                                <div className="container">
+                                    <DashboardHeader title="Historial de Certificados" homeLink="/admin-dashboard" />
+                                    <CertificateHistory />
                                 </div>
                             } />
                             <Route path="/admin-dashboard/event/:id" element={

@@ -19,7 +19,9 @@ from .views import (
     EnviarDifusionEventoView,
     UploadCertificateTemplateView,
     GenerateBulkCertificatesView,
-    SendCertificatesBulkView
+    SendCertificatesBulkView,
+    CertificateViewSet,
+    DownloadCertificatesZipView
 )
 
 # ...
@@ -40,6 +42,9 @@ router.register(r'programas', ProgramaViewSet)    # /api/programas/ (Lista de pr
 
 # Student routes
 router.register(r'estudiantes-activos', EstudianteActivoViewSet, basename='estudiantes-activos')
+
+# Certificate History route
+router.register(r'certificates', CertificateViewSet, basename='certificates')
 
 urlpatterns = [
     # =====================================================================
@@ -76,6 +81,9 @@ urlpatterns = [
 
     # Enviar Certificados por Email (Masivo)
     path('certificates/send-bulk/', SendCertificatesBulkView.as_view(), name='send_bulk_certificates'),
+
+    # Descargar ZIP de certificados
+    path('certificates/download-zip/', DownloadCertificatesZipView.as_view(), name='download_zip'),
 
     # Enviar difusión de evento a estudiantes
     path('admin/eventos/<int:evento_id>/difusion/', EnviarDifusionEventoView.as_view(), name='enviar_difusion'),

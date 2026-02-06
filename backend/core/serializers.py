@@ -1,6 +1,6 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import CustomUser, Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle
+from .models import CustomUser, Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle, GeneratedCertificate
 import random
 from django.core.mail import send_mail
 from django.conf import settings
@@ -289,3 +289,14 @@ class InscripcionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Inscripcion
         fields = ['id', 'evento', 'evento_titulo', 'usuario', 'fecha_inscripcion', 'asistio']
+
+
+class GeneratedCertificateSerializer(serializers.ModelSerializer):
+    estudiante_nombre = serializers.CharField(source='usuario.full_name', read_only=True)
+    estudiante_documento = serializers.CharField(source='usuario.id', read_only=True)
+    estudiante_email = serializers.CharField(source='usuario.email', read_only=True)
+    evento_titulo = serializers.CharField(source='evento.titulo', read_only=True)
+    
+    class Meta:
+        model = GeneratedCertificate
+        fields = ['id', 'estudiante_nombre', 'estudiante_documento', 'estudiante_email', 'evento_titulo', 'filename', 'created_at']
