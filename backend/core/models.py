@@ -174,6 +174,25 @@ class Programa(models.Model):
         return self.descripcion
 
 
+class LugarEvento(models.Model):
+    """
+    Ubicaciones/Lugares donde se realizan los eventos.
+    Mapea a tabla existente 'lugares_evento' en la BD.
+    """
+    id = models.AutoField(primary_key=True)
+    descripcion = models.CharField(max_length=50, verbose_name="Descripción del Lugar")
+
+    class Meta:
+        managed = True
+        db_table = 'lugares_evento'
+        verbose_name = "Lugar de Evento"
+        verbose_name_plural = "Lugares de Evento"
+        ordering = ['descripcion']
+
+    def __str__(self):
+        return self.descripcion
+
+
 class EstudianteActivoUnivalle(models.Model):
     """
     Estudiantes activos de Univalle cargados desde Excel.
@@ -215,7 +234,14 @@ class Evento(models.Model):
     titulo = models.CharField(max_length=200, verbose_name="Título del Evento")
     descripcion = models.TextField(verbose_name="Descripción", blank=True)
     fecha = models.DateTimeField(verbose_name="Fecha y Hora de Inicio")
-    lugar = models.CharField(max_length=200, verbose_name="Lugar")
+    lugar = models.ForeignKey(
+        LugarEvento,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='eventos',
+        verbose_name="Lugar"
+    )
     
     # Usuario que creó el evento (Staff/Admin)
     creado_por = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='eventos_creados')
@@ -241,9 +267,9 @@ class Evento(models.Model):
         verbose_name='Tipo de contenido del flyer (MIME type)'
     )
     
-    # Configuración de refrigerios
-    requiere_refrigerio = models.BooleanField(default=False, verbose_name='¿Requiere Refrigerio?')
-    cantidad_refrigerios = models.PositiveIntegerField(default=0, verbose_name='Cantidad de Refrigerios (Total)')
+    # Configuración de entregables (Souvenirs, Refrigerios, etc.)
+    requiere_entregable = models.BooleanField(default=False, verbose_name='¿Requiere Entregable/Souvenir?')
+    cantidad_entregables = models.PositiveIntegerField(default=0, verbose_name='Cantidad de Entregables (Total)')
     
     # ¿Se controla asistencia mediante escaneo de QR en la entrada?
     asistencia_qr = models.BooleanField(default=False, verbose_name='¿Asistencia por QR?')
@@ -251,8 +277,8 @@ class Evento(models.Model):
     # Campos nuevos para gestión avanzada
     fecha_fin = models.DateTimeField(null=True, blank=True, verbose_name="Fecha Fin")
     
-    # JSON para configurar tipos de refrigerios personalizados (ej: ['Desayuno', 'Almuerzo'])
-    detalles_refrigerios = models.JSONField(default=dict, blank=True, verbose_name="Detalles de Refrigerios")
+    # JSON para configurar tipos de entregables personalizados (ej: ['Desayuno', 'Almuerzo', 'Souvenir'])
+    detalles_entregables = models.JSONField(default=dict, blank=True, verbose_name="Detalles de Entregables")
     
     # Plantilla PDF para generar certificados automáticos
     plantilla_certificado = models.FileField(upload_to='plantillas_certificados/', blank=True, null=True, verbose_name='Plantilla de Certificado (Imagen/PDF)')

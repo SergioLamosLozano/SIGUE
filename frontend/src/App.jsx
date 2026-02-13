@@ -23,7 +23,7 @@ import EventDashboard from './components/events/EventDashboard'
 import UserProfile from './components/users/UserProfile'
 import UserManagement from './components/users/UserManagement'
 import ExcelUpload from './components/admin/ExcelUpload'
-import ProgramasManagement from './components/admin/ProgramasManagement'
+import SystemOptions from './components/admin/SystemOptions'
 import CertificatesPanel from './components/admin/CertificatesPanel'
 import CertificateHistory from './components/admin/CertificateHistory'
 
@@ -38,13 +38,13 @@ const DashboardHeader = ({ title, homeLink = "/" }) => {
         <nav className="navbar dashboard-header">
             <div className="dashboard-header__left">
                 {homeLink && (
-                <Link to={homeLink} className="dashboard-header__home-link" title="Inicio">
-                    <img 
-                      src="/univallelogo.png" 
-                      alt="Logo Univalle" 
-                      className="dashboard-header__logo" 
-                    />
-                </Link>
+                    <Link to={homeLink} className="dashboard-header__home-link" title="Inicio">
+                        <img
+                            src="/univallelogo.png"
+                            alt="Logo Univalle"
+                            className="dashboard-header__logo"
+                        />
+                    </Link>
                 )}
                 <h1 className="dashboard-header__title">{title}</h1>
             </div>
@@ -112,10 +112,10 @@ const AdminSelectionMenu = () => (
             />
 
             <DashboardCard
-                to="/admin-dashboard/programas"
-                icon="📚"
-                title="Programas Académicos"
-                description="Gestionar programas de estudio, facultades y carreras universitarias."
+                to="/admin-dashboard/system-options"
+                icon="⚙️"
+                title="Opciones del Sistema"
+                description="Gestionar programas académicos y ubicaciones de eventos."
             />
 
             <DashboardCard
@@ -165,7 +165,7 @@ const AssistantDashboard = () => (
 const ProfilePage = () => {
     const { user } = useAuth();
     let homeLink = "/";
-    
+
     if (user?.role === 'Administrador') homeLink = "/admin-dashboard";
     else if (user?.role === 'Estudiante') homeLink = "/student-dashboard";
     else if (user?.role === 'Docente') homeLink = "/teacher-dashboard";
@@ -218,10 +218,10 @@ function App() {
                                     <ExcelUpload />
                                 </div>
                             } />
-                            <Route path="/admin-dashboard/programas" element={
+                            <Route path="/admin-dashboard/system-options" element={
                                 <div className="container">
-                                    <DashboardHeader title="Programas Académicos" homeLink="/admin-dashboard" />
-                                    <ProgramasManagement />
+                                    <DashboardHeader title="Opciones del Sistema" homeLink="/admin-dashboard" />
+                                    <SystemOptions />
                                 </div>
                             } />
                             <Route path="/admin-dashboard/certificates" element={
@@ -243,12 +243,6 @@ function App() {
                             } />
                             <Route path="/admin-dashboard/event/:id/scanner" element={
                                 <div className="container">
-                                    <nav className="navbar">
-                                        <div className="scanner-header">
-                                            <h1>📸 Escáner de Evento</h1>
-                                            <Link to="/admin-dashboard/events">⬅ Volver a Eventos</Link>
-                                        </div>
-                                    </nav>
                                     <QRScanner />
                                 </div>
                             } />

@@ -138,7 +138,7 @@ def enviar_codigos_qr_email(asistente, evento, codigos_qr):
                 <p>A continuación encontrarás tus <strong>Códigos QR personales</strong>. Por favor preséntalos al personal encargado para:</p>
                 <ul>
                     <li>El ingreso al evento</li>
-                    <li>Reclamar tus comidas/refrigerios (si aplica)</li>
+                    <li>Reclamar tus entregables/souvenirs (si aplica)</li>
                 </ul>
                 
                 <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 25px 0;">

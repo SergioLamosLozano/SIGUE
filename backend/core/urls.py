@@ -21,7 +21,8 @@ from .views import (
     GenerateBulkCertificatesView,
     SendCertificatesBulkView,
     CertificateViewSet,
-    DownloadCertificatesZipView
+    DownloadCertificatesZipView,
+    LugarEventoViewSet
 )
 
 # ...
@@ -39,6 +40,7 @@ router.register(r'eventos', EventoViewSet)        # /api/eventos/ (Gestión prin
 
 # Program routes
 router.register(r'programas', ProgramaViewSet)    # /api/programas/ (Lista de programas)
+router.register(r'locations', LugarEventoViewSet)   # /api/locations/ (Lugares de eventos)
 
 # Student routes
 router.register(r'estudiantes-activos', EstudianteActivoViewSet, basename='estudiantes-activos')

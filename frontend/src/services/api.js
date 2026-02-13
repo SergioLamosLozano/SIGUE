@@ -14,13 +14,27 @@ const api = axios.create({
 // Interceptor de petición: Inyecta el token de autenticación (JWT) si existe
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
   (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Interceptor de respuesta: Maneja token expirado (401)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // El token venció o es inválido — cerrar sesión
+      console.warn("⚠️ Sesión expirada. Redirigiendo al login...");
+      sessionStorage.clear();
+      window.location.href = '/';
+    }
     return Promise.reject(error);
   }
 );
@@ -63,7 +77,7 @@ export const getCodigoQR = (id) => api.get(`/qr/${id}/`);
 export const validarCodigoQR = (codigo) => api.post('/qr/escanear/', { codigo });
 export const getCodigoQRImagen = (id) => `${API_URL}/qr/${id}/generar_imagen/`;
 export const getCodigoQRBase64 = (id) => api.get(`/qr/${id}/generar_base64/`);
-export const getCodigosPorAsistente = (asistenteId) => 
+export const getCodigosPorAsistente = (asistenteId) =>
   api.get(`/qr/por_asistente/?asistente_id=${asistenteId}`);
 
 // --- EVENTOS (Nuevo Sistema) ---

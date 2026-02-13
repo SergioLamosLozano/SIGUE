@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+
 import { showSuccess, showError, showConfirm } from '../../services/alert';
 import '../../styles/EventList.css';
 
@@ -17,7 +18,8 @@ const EventList = ({ canCreate = false }) => {
     const [misEventos, setMisEventos] = useState([]); // IDs de eventos donde el usuario está inscrito
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    
+    const [submitting, setSubmitting] = useState(false);
+
     // Estado para EDICIÓN
     const [editingEventId, setEditingEventId] = useState(null);
     const [existingFlyerUrl, setExistingFlyerUrl] = useState(null); // Para mostrar la imagen actual al editar
@@ -33,9 +35,10 @@ const EventList = ({ canCreate = false }) => {
         fecha: '',
         fecha_fin: '',
         lugar: '',
-        requiere_refrigerio: false,
-        cantidad_refrigerios: 0,
-        refrigerios_items: [], // Array de objetos {id, name} para múltiples comidas
+        lugar: '',
+        requiere_entregable: false,
+        cantidad_entregables: 0,
+        entregables_items: [], // Array de objetos {id, name} para múltiples tipos (Comida, Souvenir)
         asistencia_qr: false,
         programas_dirigidos_ids: [], // IDs de programas seleccionados
         enviar_difusion: false // Enviar correos automáticamente al crear/editar
@@ -44,9 +47,11 @@ const EventList = ({ canCreate = false }) => {
 
     // Estado para programas académicos (A quién va dirigido)
     const [programas, setProgramas] = useState([]);
+    // Estado para lugares/ubicaciones
+    const [lugares, setLugares] = useState([]);
 
     // Configuración de Auth para Axios
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     const authConfig = {
         headers: { Authorization: `Bearer ${token}` }
     };
@@ -81,9 +86,21 @@ const EventList = ({ canCreate = false }) => {
         }
     };
 
+    // Cargar ubicaciones para el selector
+    const fetchLugares = async () => {
+        try {
+            const res = await axios.get('http://localhost:8000/api/locations/', authConfig);
+            const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
+            setLugares(data);
+        } catch (error) {
+            console.error("Error fetching lugares", error);
+        }
+    };
+
     useEffect(() => {
         fetchEventos();
         fetchProgramas();
+        fetchLugares();
     }, []);
 
     // --- MANEJADORES DE ACCIÓN ---
@@ -108,18 +125,18 @@ const EventList = ({ canCreate = false }) => {
     // Preparar el formulario para Editar
     const handleEdit = (evento) => {
         setEditingEventId(evento.id);
-        
-        // Parsear refrigerios (suponiendo que viene como objeto o string JSON)
-        let refItems = [];
-        if (evento.detalles_refrigerios) {
+
+        // Parsear entregables (suponiendo que viene como objeto o string JSON)
+        let entItems = [];
+        if (evento.detalles_entregables) {
             try {
-                const parsed = typeof evento.detalles_refrigerios === 'string' 
-                    ? JSON.parse(evento.detalles_refrigerios) 
-                    : evento.detalles_refrigerios;
+                const parsed = typeof evento.detalles_entregables === 'string'
+                    ? JSON.parse(evento.detalles_entregables)
+                    : evento.detalles_entregables;
                 if (parsed && Array.isArray(parsed.items)) {
-                    refItems = parsed.items.map((name, idx) => ({ id: Date.now() + idx, name }));
+                    entItems = parsed.items.map((name, idx) => ({ id: Date.now() + idx, name }));
                 }
-            } catch (e) { console.error("Error parseando refrigerios", e); }
+            } catch (e) { console.error("Error parseando entregables", e); }
         }
 
         setNewEvent({
@@ -128,13 +145,13 @@ const EventList = ({ canCreate = false }) => {
             fecha: formatDateForInput(evento.fecha),
             fecha_fin: formatDateForInput(evento.fecha_fin),
             lugar: evento.lugar,
-            requiere_refrigerio: evento.requiere_refrigerio || false,
-            cantidad_refrigerios: evento.cantidad_refrigerios || 0,
-            refrigerios_items: refItems,
+            requiere_entregable: evento.requiere_entregable || false,
+            cantidad_entregables: evento.cantidad_entregables || 0,
+            entregables_items: entItems,
             asistencia_qr: evento.asistencia_qr || false,
             // Asumimos que el backend devuelve la lista de IDs o objetos en 'programas_dirigidos'
             // Si devuelve objetos, mapeamos a IDs.
-            programas_dirigidos_ids: Array.isArray(evento.programas_dirigidos) 
+            programas_dirigidos_ids: Array.isArray(evento.programas_dirigidos)
                 ? evento.programas_dirigidos.map(p => typeof p === 'object' ? p.id : p)
                 : [],
             enviar_difusion: false // Por defecto false al editar para no spamear, a menos que el usuario quiera
@@ -156,6 +173,8 @@ const EventList = ({ canCreate = false }) => {
      */
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (submitting) return;
+        setSubmitting(true);
 
         const formData = new FormData();
         formData.append('titulo', newEvent.titulo);
@@ -163,19 +182,19 @@ const EventList = ({ canCreate = false }) => {
         formData.append('fecha', newEvent.fecha);
         if (newEvent.fecha_fin) formData.append('fecha_fin', newEvent.fecha_fin);
         else formData.append('fecha_fin', ''); // Enviar vacío si se limpia
-        
-        formData.append('lugar', newEvent.lugar);
-        formData.append('requiere_refrigerio', newEvent.requiere_refrigerio);
 
-        // Lógica de refrigerios
-        let totalQty = newEvent.cantidad_refrigerios;
-        if (newEvent.refrigerios_items.length > 0) {
-            const itemsNames = newEvent.refrigerios_items.map(i => i.name).filter(n => n.trim() !== '');
-            formData.append('detalles_refrigerios', JSON.stringify({ items: itemsNames }));
+        formData.append('lugar', newEvent.lugar);
+        formData.append('requiere_entregable', newEvent.requiere_entregable);
+
+        // Lógica de entregables
+        let totalQty = newEvent.cantidad_entregables;
+        if (newEvent.entregables_items.length > 0) {
+            const itemsNames = newEvent.entregables_items.map(i => i.name).filter(n => n.trim() !== '');
+            formData.append('detalles_entregables', JSON.stringify({ items: itemsNames }));
             // totalQty se podría calcular o dejar manual, mantenemos manual o 0
         }
-        formData.append('cantidad_refrigerios', totalQty);
-        
+        formData.append('cantidad_entregables', totalQty);
+
         formData.append('asistencia_qr', newEvent.asistencia_qr);
 
         // Añadir programas dirigidos
@@ -185,10 +204,10 @@ const EventList = ({ canCreate = false }) => {
                 formData.append('programas_dirigidos_ids', id);
             });
         } else {
-             // Si queremos limpiar los programas al editar, necesitamos enviar algo que Django entienda como vacío
-             // o simplemente no enviar nada y que el backend maneje el set.
-             // Para 'ManyRelatedField' en DRF, enviar lista vacía a veces requiere truco, pero probemos omitir
-             // o enviar un valor vacío explicito si es necesario.
+            // Si queremos limpiar los programas al editar, necesitamos enviar algo que Django entienda como vacío
+            // o simplemente no enviar nada y que el backend maneje el set.
+            // Para 'ManyRelatedField' en DRF, enviar lista vacía a veces requiere truco, pero probemos omitir
+            // o enviar un valor vacío explicito si es necesario.
         }
 
         // Difusión
@@ -212,13 +231,26 @@ const EventList = ({ canCreate = false }) => {
                 showSuccess('Evento actualizado exitosamente');
             } else {
                 // MODO CREACIÓN
-                await axios.post('http://localhost:8000/api/eventos/', formData, {
+                const res = await axios.post('http://localhost:8000/api/eventos/', formData, {
                     headers: {
                         ...authConfig.headers,
                         'Content-Type': 'multipart/form-data'
                     }
                 });
-                showSuccess('Evento creado exitosamente');
+
+                // Verificar si se activó la difusión
+                const isDiffusionActive = formData.get('enviar_difusion') === 'true' || formData.get('enviar_difusion') === true;
+
+                if (isDiffusionActive && res.data.emails_enviados) {
+                    // Evento Creado + Difusión Completada
+                    showSuccess(
+                        '¡Evento Creado y Difusión Completada!',
+                        `El evento se guardó correctamente. Se enviaron ${res.data.emails_enviados} correos de difusión.`
+                    );
+                } else {
+                    // Solo Crear
+                    showSuccess('¡Evento Creado!', 'El evento ha sido registrado exitosamente en el sistema.');
+                }
             }
 
             setShowModal(false);
@@ -228,6 +260,8 @@ const EventList = ({ canCreate = false }) => {
             console.error(error);
             const action = editingEventId ? 'actualizar' : 'crear';
             showError(`Error al ${action} evento: ` + (error.response?.data?.detail || error.message));
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -238,9 +272,9 @@ const EventList = ({ canCreate = false }) => {
             fecha: '',
             fecha_fin: '',
             lugar: '',
-            requiere_refrigerio: false,
-            cantidad_refrigerios: 0,
-            refrigerios_items: [],
+            requiere_entregable: false,
+            cantidad_entregables: 0,
+            entregables_items: [],
             asistencia_qr: false,
             programas_dirigidos_ids: [],
             enviar_difusion: false
@@ -421,7 +455,7 @@ const EventList = ({ canCreate = false }) => {
                                     📅 {new Date(evento.fecha).toLocaleString()}
                                 </div>
                                 <div className="event-info">
-                                    📍 {evento.lugar}
+                                    📍 {evento.lugar_nombre || evento.lugar}
                                 </div>
 
                                 <p className="event-description">{evento.descripcion}</p>
@@ -429,7 +463,7 @@ const EventList = ({ canCreate = false }) => {
                                 {/* Badges informativos */}
                                 <div className="event-badges">
                                     {evento.estado === 'PENDIENTE' && <span className="badge badge-warning">⏳ Pendiente</span>}
-                                    {evento.requiere_refrigerio && <span className="badge badge-refrigerio">🍿 Refrigerio</span>}
+                                    {evento.requiere_entregable && <span className="badge badge-refrigerio">🎁 Entregable</span>}
                                     {evento.asistencia_qr && <span className="badge badge-qr">📱 QR</span>}
                                 </div>
 
@@ -451,7 +485,7 @@ const EventList = ({ canCreate = false }) => {
                                                         ✅ Aprobar
                                                     </button>
                                                 )}
-                                                
+
                                                 {/* Botón EDITAR */}
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleEdit(evento); }}
@@ -514,7 +548,7 @@ const EventList = ({ canCreate = false }) => {
                             </h3>
                             <button className="event-modal-close" onClick={() => setShowModal(false)}>✕</button>
                         </div>
-                        
+
                         <div className="event-modal-body">
                             <form onSubmit={handleSubmit}>
                                 {/* Layout de dos columnas */}
@@ -587,13 +621,19 @@ const EventList = ({ canCreate = false }) => {
                                             <label className="event-label">
                                                 Lugar del Evento *
                                             </label>
-                                            <input
+                                            <select
                                                 className="event-input"
                                                 value={newEvent.lugar}
                                                 onChange={e => setNewEvent({ ...newEvent, lugar: e.target.value })}
                                                 required
-                                                placeholder="Ej: Auditorio Principal"
-                                            />
+                                            >
+                                                <option value="">Seleccione una ubicación</option>
+                                                {lugares.map(lugar => (
+                                                    <option key={lugar.id} value={lugar.id}>
+                                                        {lugar.descripcion}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
 
                                         <div className="event-form-group">
@@ -617,10 +657,10 @@ const EventList = ({ canCreate = false }) => {
                                                         </div>
                                                     ) : existingFlyerUrl && editingEventId ? (
                                                         <div className="flyer-content-existing" style={{ position: 'relative' }}>
-                                                            <img 
-                                                                src={existingFlyerUrl} 
-                                                                alt="Actual" 
-                                                                style={{ maxWidth: '100%', maxHeight: '100px', borderRadius: '6px', marginBottom: '5px' }} 
+                                                            <img
+                                                                src={existingFlyerUrl}
+                                                                alt="Actual"
+                                                                style={{ maxWidth: '100%', maxHeight: '100px', borderRadius: '6px', marginBottom: '5px' }}
                                                             />
                                                             <p style={{ margin: '0', fontSize: '0.8rem', color: '#666' }}>Imagen Actual (Clic para cambiar)</p>
                                                         </div>
@@ -716,28 +756,54 @@ const EventList = ({ canCreate = false }) => {
                                             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '10px' }}>
                                                 <input
                                                     type="checkbox"
-                                                    checked={newEvent.requiere_refrigerio}
-                                                    onChange={e => setNewEvent({ ...newEvent, requiere_refrigerio: e.target.checked })}
+                                                    checked={newEvent.requiere_entregable}
+                                                    onChange={e => setNewEvent({ ...newEvent, requiere_entregable: e.target.checked })}
                                                     style={{ width: 'auto' }}
                                                 />
-                                                <strong>Requiere Refrigerio</strong>
+                                                <strong>Requiere Entregables / Souvenirs</strong>
                                             </label>
 
-                                            {newEvent.requiere_refrigerio && (
+                                            {newEvent.requiere_entregable && (
                                                 <div className="refrigerio-list">
-                                                    <p style={{ margin: '0 0 10px', fontSize: '0.9rem' }}>Define qué comidas se darán:</p>
+                                                    <p style={{ margin: '0 0 10px', fontSize: '0.9rem' }}>Tipo de entregables (Selecciona o escribe):</p>
 
-                                                    {newEvent.refrigerios_items.map((item) => (
+                                                    {/* Botones de selección rápida */}
+                                                    <div style={{ display: 'flex', gap: '5px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                                                        {['Desayuno', 'Almuerzo', 'Cena', 'Refrigerio', 'Souvenir', 'Certificado Impreso'].map(tipo => (
+                                                            <button
+                                                                key={tipo}
+                                                                type="button"
+                                                                className="btn btn-sm btn-outline-secondary" // Puedes definir este estilo o usar inline
+                                                                style={{
+                                                                    fontSize: '0.8rem',
+                                                                    padding: '4px 8px',
+                                                                    borderRadius: '15px',
+                                                                    border: '1px solid #ccc',
+                                                                    background: '#f9f9f9'
+                                                                }}
+                                                                onClick={() => {
+                                                                    setNewEvent(prev => ({
+                                                                        ...prev,
+                                                                        entregables_items: [...prev.entregables_items, { id: Date.now(), name: tipo }]
+                                                                    }));
+                                                                }}
+                                                            >
+                                                                + {tipo}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+
+                                                    {newEvent.entregables_items.map((item) => (
                                                         <div key={item.id} className="refrigerio-item">
                                                             <input
                                                                 className="event-input"
-                                                                placeholder="Ej: Desayuno, Almuerzo"
+                                                                placeholder="Ej: Souvenir, Desayuno..."
                                                                 value={item.name}
                                                                 onChange={e => {
-                                                                    const newItems = newEvent.refrigerios_items.map(i =>
+                                                                    const newItems = newEvent.entregables_items.map(i =>
                                                                         i.id === item.id ? { ...i, name: e.target.value } : i
                                                                     );
-                                                                    setNewEvent({ ...newEvent, refrigerios_items: newItems });
+                                                                    setNewEvent({ ...newEvent, entregables_items: newItems });
                                                                 }}
                                                                 style={{ flex: 1 }}
                                                             />
@@ -748,8 +814,8 @@ const EventList = ({ canCreate = false }) => {
                                                                 onClick={(e) => {
                                                                     e.preventDefault();
                                                                     e.stopPropagation();
-                                                                    const newItems = newEvent.refrigerios_items.filter(i => i.id !== item.id);
-                                                                    setNewEvent(prev => ({ ...prev, refrigerios_items: newItems }));
+                                                                    const newItems = newEvent.entregables_items.filter(i => i.id !== item.id);
+                                                                    setNewEvent(prev => ({ ...prev, entregables_items: newItems }));
                                                                 }}
                                                             >
                                                                 ✕
@@ -765,11 +831,11 @@ const EventList = ({ canCreate = false }) => {
                                                             e.preventDefault();
                                                             setNewEvent(prev => ({
                                                                 ...prev,
-                                                                refrigerios_items: [...prev.refrigerios_items, { id: Date.now(), name: '' }]
+                                                                entregables_items: [...prev.entregables_items, { id: Date.now(), name: '' }]
                                                             }));
                                                         }}
                                                     >
-                                                        + Agregar Comida
+                                                        + Agregar Otro
                                                     </button>
                                                 </div>
                                             )}
@@ -791,8 +857,8 @@ const EventList = ({ canCreate = false }) => {
 
                                 <div className="modal-actions">
                                     <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
-                                    <button type="submit" className="btn btn-primary" style={{ minWidth: '150px' }}>
-                                        {editingEventId ? '💾 Guardar Cambios' : '✨ Crear Evento'}
+                                    <button type="submit" className="btn btn-primary" style={{ minWidth: '150px' }} disabled={submitting}>
+                                        {submitting ? '⏳ Procesando...' : (editingEventId ? '💾 Guardar Cambios' : '✨ Crear Evento')}
                                     </button>
                                 </div>
                             </form>

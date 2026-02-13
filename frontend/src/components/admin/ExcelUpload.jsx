@@ -26,7 +26,7 @@ const ExcelUpload = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const pageSize = 20;
 
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     const authConfig = {
         headers: { Authorization: `Bearer ${token}` }
     };
@@ -138,8 +138,8 @@ const ExcelUpload = () => {
             {/* Page Header Card */}
             <div className="page-header-card">
                 <div className="page-header-card__left">
-                    <button 
-                        onClick={() => navigate('/admin-dashboard')} 
+                    <button
+                        onClick={() => navigate('/admin-dashboard')}
                         className="btn btn-secondary"
                     >
                         ← Volver

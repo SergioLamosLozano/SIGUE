@@ -4,7 +4,8 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import { Pie, Bar } from 'react-chartjs-2';
 
 // Importamos tu instancia de API configurada (importante para que funcione el token)
-import api from '../../services/api'; 
+import api from '../../services/api';
+
 import { showSuccess, showError, showConfirm } from '../../services/alert';
 import '../../styles/EventDashboard.css';
 
@@ -124,20 +125,27 @@ const EventDashboard = () => {
         }
 
         const programNames = evento.programas_dirigidos.map(p => p.descripcion).join(', ');
-        const confirmed = await showConfirm('Enviar Difusión', `¿Enviar correos promocionales a estudiantes de:\n\n${programNames}?`);
+
+        // Confirmación estilizada con SweetAlert2
+        const confirmed = await showConfirm(
+            '📣 Enviar Difusión',
+            `¿Enviar correos promocionales a estudiantes de:\n\n${programNames}?`
+        );
         if (!confirmed) return;
 
         try {
             setSendingDiffusion(true);
-            const res = await api.post(`/admin/eventos/${id}/difusion/`);
 
-            if (res.data.errores && res.data.errores.length > 0) {
-                showError('Difusión Parcial', `${res.data.message}\nErrores: ${res.data.errores.length}`);
-            } else {
-                showSuccess('¡Difusión Enviada!', `Se enviaron ${res.data.emails_enviados} correos.`);
-            }
+            const res = await api.post(`/admin/eventos/${id}/difusion/`);
+            const enviados = res.data.emails_enviados || 0;
+
+            showSuccess(
+                '¡Difusión Completada!',
+                `Se enviaron ${enviados} correos de difusión exitosamente.`
+            );
+
         } catch (error) {
-            showError('Error de Difusión', 'Error al enviar emails: ' + (error.response?.data?.error || error.message));
+            showError('Error', error.response?.data?.error || 'Error al enviar la difusión.');
         } finally {
             setSendingDiffusion(false);
         }
@@ -166,26 +174,54 @@ const EventDashboard = () => {
 
     // --- DATOS DE GRÁFICA ---
 
-    const chartData = stats && stats.asistencia_por_dependencia ? {
-        labels: Object.keys(stats.asistencia_por_dependencia),
-        datasets: [{
-            label: '# de Asistentes',
-            data: Object.values(stats.asistencia_por_dependencia),
-            backgroundColor: [
-                'rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)',
-                'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)',
-                '#4caf50', '#00bcd4', '#e91e63'
-            ],
-            borderWidth: 1,
-        }],
+    // --- DATOS DE GRÁFICA COMPARATIVA ---
+    const chartData = stats && stats.dependencias_comparativa ? {
+        labels: Object.keys(stats.dependencias_comparativa.inscritos || {}),
+        datasets: [
+            {
+                label: 'Inscritos',
+                data: Object.values(stats.dependencias_comparativa.inscritos || {}),
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1,
+            },
+            {
+                label: 'Asistentes (Entrada)',
+                data: Object.keys(stats.dependencias_comparativa.inscritos || {}).map(dep => stats.dependencias_comparativa.asistencia[dep] || 0),
+                backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1,
+            }
+        ],
     } : null;
+
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top',
+            },
+            title: {
+                display: true,
+                text: 'Comparativa: Inscritos vs Asistentes por Dependencia',
+            },
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    };
 
     if (loading) return <div className="loading">Cargando Dashboard...</div>;
     if (!evento) return <div className="alert alert-error">Evento no encontrado</div>;
 
     return (
         <div className="event-dashboard">
-            
+
+
+
             {/* 1. BOTÓN VOLVER (Restaurado FUERA del header) */}
             <div style={{ marginBottom: '20px' }}>
                 <button onClick={() => navigate('/admin-dashboard/events')} className="btn btn-secondary">
@@ -196,16 +232,16 @@ const EventDashboard = () => {
             {/* EVENT HEADER CON IMAGEN CIRCULAR */}
             <div className="event-dashboard__header">
                 <div className="header-content-wrapper">
-                    
+
                     {/* COLUMNA IZQUIERDA: INFORMACIÓN */}
                     <div className="header-info-column">
                         <h1 className="event-dashboard__title">{evento.titulo}</h1>
                         <p className="event-dashboard__info">
-                            📅 {new Date(evento.fecha).toLocaleString()} | 📍 {evento.lugar}
+                            📅 {new Date(evento.fecha).toLocaleString()} | 📍 {evento.lugar_nombre || evento.lugar}
                         </p>
-                        {evento.requiere_refrigerio && (
-                            <span className="event-dashboard__badge">
-                                🍿 {evento.cantidad_refrigerios} Refrigerios Disponibles
+                        {evento.requiere_entregable && stats && (
+                            <span className={`event-dashboard__badge ${stats.entregables_disponibles_total === 0 ? 'badge-danger' : ''}`}>
+                                🎁 {stats.entregables_disponibles_total} Entregables Disponibles
                             </span>
                         )}
 
@@ -227,12 +263,12 @@ const EventDashboard = () => {
                     {/* COLUMNA DERECHA: FLYER REDONDO (Versión Base64) */}
                     {evento.flyer_base64 && (
                         <div className="header-image-column">
-                            <img 
+                            <img
                                 /* Construimos la fuente de la imagen Base64 igual que en tu lista */
                                 src={`data:${evento.flyer_content_type || 'image/png'};base64,${evento.flyer_base64}`}
-                                alt={`Flyer de ${evento.titulo}`} 
+                                alt={`Flyer de ${evento.titulo}`}
                                 className="event-flyer-circle"
-                                onError={(e) => e.target.style.display = 'none'} 
+                                onError={(e) => e.target.style.display = 'none'}
                             />
                         </div>
                     )}
@@ -259,15 +295,17 @@ const EventDashboard = () => {
                     </h3>
                     <p className="event-dashboard__kpi-label">% Asistencia</p>
                 </div>
-                {evento.requiere_refrigerio && (
+                {evento.requiere_entregable && (
                     <div className="event-dashboard__kpi-card">
                         <h3 className="event-dashboard__kpi-value event-dashboard__kpi-value--warning">
-                            {stats.refrigerios_entregados}
+                            {stats.entregables_entregados_total}
                         </h3>
-                        <p className="event-dashboard__kpi-label">Refrigerios Entregados</p>
+                        <p className="event-dashboard__kpi-label">Total Entregados</p>
                     </div>
                 )}
             </div>
+
+
 
             {/* ACTION BUTTONS (Clean Grid - SIN CERTIFICADOS) */}
             <div className="event-dashboard__actions">
@@ -280,13 +318,13 @@ const EventDashboard = () => {
                 <button className="event-dashboard__action-btn" onClick={() => setShowStats(true)}>
                     📊 Estadísticas Avanzadas
                 </button>
-                
+
                 {evento.asistencia_qr && (
                     <button className="event-dashboard__action-btn" onClick={() => navigate(`/admin-dashboard/event/${id}/scanner`)}>
                         📸 Validar QRs (Escáner)
                     </button>
                 )}
-                
+
                 <button className="event-dashboard__action-btn" onClick={handleExportarExcel}>
                     📊 Exportar Lista Asistentes
                 </button>
@@ -371,13 +409,52 @@ const EventDashboard = () => {
                 </>
             ) : (
                 /* STATS VIEW */
+                /* STATS VIEW */
                 <div className="event-dashboard__stats-card">
                     <div className="event-dashboard__stats-header">
-                        <h3 className="event-dashboard__stats-title">📊 Estadísticas de Asistencia por Dependencia</h3>
+                        <h3 className="event-dashboard__stats-title">📊 Estadísticas Avanzadas</h3>
                         <button className="btn btn-secondary" onClick={() => setShowStats(false)}>
                             ⬅ Volver a Lista
                         </button>
                     </div>
+
+                    {/* DETALLE DE ENTREGABLES (MOVIDO AQUÍ) */}
+                    {evento.requiere_entregable && stats.entregables_detalle && Object.keys(stats.entregables_detalle).length > 0 && (
+                        <div className="event-dashboard__entregables-section" style={{ marginBottom: '30px', marginTop: '20px' }}>
+                            <h3 className="event-dashboard__section-title" style={{ fontSize: '1.2rem', marginBottom: '15px', color: '#555' }}>
+                                📦 Detalle de Entregables
+                            </h3>
+                            <div className="event-dashboard__entregables-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+                                {Object.entries(stats.entregables_detalle).map(([tipo, data]) => (
+                                    <div key={tipo} className="entregable-card" style={{
+                                        background: '#fff',
+                                        padding: '15px',
+                                        borderRadius: '8px',
+                                        boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                                        borderLeft: '4px solid #ff9800'
+                                    }}>
+                                        <h4 style={{ margin: '0 0 10px', fontSize: '1rem', color: '#333' }}>{tipo}</h4>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.9rem' }}>
+                                            <span style={{ color: '#666' }}>Entregados:</span>
+                                            <strong style={{ color: '#ff9800' }}>{data.entregados}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                            <span style={{ color: '#666' }}>Disponibles:</span>
+                                            <strong style={{ color: '#4caf50' }}>{data.disponibles}</strong>
+                                        </div>
+                                        <div style={{ marginTop: '8px', background: '#eee', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+                                            <div style={{
+                                                width: `${data.generados > 0 ? (data.entregados / data.generados) * 100 : 0}%`,
+                                                background: '#ff9800',
+                                                height: '100%'
+                                            }}></div>
+                                        </div>
+                                        <p style={{ textAlign: 'right', fontSize: '0.75rem', color: '#999', margin: '5px 0 0' }}>Total: {data.generados}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="event-dashboard__chart-toggles">
                         <button className={`btn ${chartType === 'pie' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setChartType('pie')}>
@@ -391,9 +468,9 @@ const EventDashboard = () => {
                     <div className="event-dashboard__chart-container">
                         {chartData ? (
                             chartType === 'pie' ? (
-                                <Pie data={chartData} options={{ maintainAspectRatio: false }} />
+                                <Pie data={chartData} options={chartOptions} />
                             ) : (
-                                <Bar data={chartData} options={{ maintainAspectRatio: false }} />
+                                <Bar data={chartData} options={chartOptions} />
                             )
                         ) : (
                             <p className="event-dashboard__no-data">No hay datos suficientes para generar gráficas.</p>

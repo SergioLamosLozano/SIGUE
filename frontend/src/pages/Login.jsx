@@ -21,7 +21,7 @@ const Login = () => {
     const [id, setId] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    
+
     // ✨ NUEVO: Estado para mostrar/ocultar contraseña
     const [showPassword, setShowPassword] = useState(false);
 
@@ -31,9 +31,9 @@ const Login = () => {
 
     // Redirección automática si el usuario ya está logueado
     React.useEffect(() => {
-        const user = JSON.parse(localStorage.getItem('user'));
+        const user = JSON.parse(sessionStorage.getItem('user'));
         if (user && user.role) {
-            switch(user.role) {
+            switch (user.role) {
                 case 'Administrador': navigate('/admin-dashboard'); break;
                 case 'Estudiante': navigate('/student-dashboard'); break;
                 case 'Docente': navigate('/teacher-dashboard'); break;
@@ -50,7 +50,7 @@ const Login = () => {
         id: '',
         email: '',
         role: 'Estudiante',
-        dependency: 'Contaduria Publica', 
+        dependency: 'Contaduria Publica',
         password: '',
         confirmPassword: '',
         verificationCode: ''
@@ -63,8 +63,8 @@ const Login = () => {
         setError('');
         try {
             await login(id, password);
-             const user = JSON.parse(localStorage.getItem('user'));
-             switch(user.role) {
+            const user = JSON.parse(sessionStorage.getItem('user'));
+            switch (user.role) {
                 case 'Administrador': navigate('/admin-dashboard'); break;
                 case 'Estudiante': navigate('/student-dashboard'); break;
                 case 'Docente': navigate('/teacher-dashboard'); break;
@@ -112,9 +112,9 @@ const Login = () => {
             setVerificationStep(false);
             setId(regData.id);
             setPassword('');
-            setRegData({...regData, password: '', confirmPassword: '', verificationCode: ''});
+            setRegData({ ...regData, password: '', confirmPassword: '', verificationCode: '' });
         } catch (error) {
-             showError("Error de verificación", error.response?.data?.error || "Código incorrecto");
+            showError("Error de verificación", error.response?.data?.error || "Código incorrecto");
         }
     };
 
@@ -132,34 +132,34 @@ const Login = () => {
             <div className="login-box">
                 <h2>Iniciar Sesión</h2>
                 {error && <div className="error-message">{error}</div>}
-                
+
                 <form onSubmit={handleLoginSubmit}>
                     <div className="form-group">
                         <label htmlFor="id">Identificación</label>
-                        <input 
-                            type="text" 
-                            id="id" 
-                            value={id} 
-                            onChange={(e) => setId(e.target.value)} 
-                            required 
+                        <input
+                            type="text"
+                            id="id"
+                            value={id}
+                            onChange={(e) => setId(e.target.value)}
+                            required
                             placeholder="Ingrese su identificación"
                         />
                     </div>
-                    
+
                     {/* ✨ NUEVO: Grupo de input de contraseña modificado con el ojito */}
                     <div className="form-group">
                         <label htmlFor="password">Contraseña</label>
                         <div style={{ position: 'relative', width: '100%' }}>
-                            <input 
+                            <input
                                 type={showPassword ? "text" : "password"} // ✨ Cambia tipo dinámicamente
-                                id="password" 
-                                value={password} 
-                                onChange={(e) => setPassword(e.target.value)} 
-                                required 
+                                id="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
                                 placeholder="Ingrese su contraseña"
                                 style={{ paddingRight: '40px' }} // ✨ Espacio para que el texto no tape el ícono
                             />
-                            
+
                             {/* ✨ Botón del Ojito */}
                             <button
                                 type="button"
@@ -188,19 +188,19 @@ const Login = () => {
                             </button>
                         </div>
                     </div>
-                    
+
                     <button type="submit" className="login-btn">Ingresar</button>
-                    
+
                     <div style={{ marginTop: '15px', textAlign: 'center' }}>
                         <span style={{ color: '#6c757d' }}>¿No tienes cuenta? </span>
-                        <button 
-                            type="button" 
+                        <button
+                            type="button"
                             onClick={() => setShowRegister(true)}
-                            style={{ 
-                                background: 'none', 
-                                border: 'none', 
-                                color: 'var(--primary-color)', 
-                                cursor: 'pointer', 
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--primary-color)',
+                                cursor: 'pointer',
                                 fontWeight: 'bold',
                                 textDecoration: 'underline'
                             }}
@@ -213,141 +213,226 @@ const Login = () => {
 
             {/* MODAL DE REGISTRO */}
             {showRegister && (
-                <div className="modal-overlay" onClick={() => setShowRegister(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-                        <div className="modal-header">
-                            <h3>{verificationStep ? 'Verificar Cuenta' : 'Crear Nueva Cuenta'}</h3>
-                            <button className="modal-close" onClick={() => setShowRegister(false)}>✕</button>
+                <div className="register-overlay" onClick={() => setShowRegister(false)}>
+                    <div className="register-modal" onClick={e => e.stopPropagation()}>
+                        {/* ---- HEADER ---- */}
+                        <div className="register-header">
+                            <h3>{verificationStep ? '✉️ Verificar Cuenta' : '📋 Crear Nueva Cuenta'}</h3>
+                            <button className="register-close-btn" onClick={() => setShowRegister(false)}>✕</button>
                         </div>
-                        
+
                         {verificationStep ? (
-                             <form onSubmit={handleVerifySubmit}>
-                                {/* ... código del formulario de verificación ... */}
-                                <div style={{textAlign: 'center', marginBottom: '20px'}}>
-                                    <p>Hemos enviado un código a <strong>{regData.email}</strong></p>
+                            /* ---- VERIFICATION STEP ---- */
+                            <form onSubmit={handleVerifySubmit}>
+                                <div className="register-body">
+                                    <div className="register-verify-icon">📨</div>
+                                    <p className="register-verify-text">
+                                        Hemos enviado un código de verificación a<br />
+                                        <strong>{regData.email}</strong>
+                                    </p>
+                                    <div className="register-field">
+                                        <label className="register-label">
+                                            Código de Verificación (4 dígitos) <span className="required-mark">*</span>
+                                        </label>
+                                        <input
+                                            className="register-input register-code-input"
+                                            type="text"
+                                            maxLength="4"
+                                            value={regData.verificationCode}
+                                            onChange={e => setRegData({ ...regData, verificationCode: e.target.value.replace(/\D/g, '') })}
+                                            required
+                                            placeholder="• • • •"
+                                            autoFocus
+                                        />
+                                    </div>
                                 </div>
-                                <div className="form-group">
-                                    <label>Código de Verificación (4 dígitos)</label>
-                                    <input 
-                                        type="text"
-                                        maxLength="4"
-                                        value={regData.verificationCode}
-                                        onChange={e => setRegData({...regData, verificationCode: e.target.value})}
-                                        required
-                                        placeholder="Ej: 1234"
-                                        style={{textAlign: 'center', fontSize: '1.5rem', letterSpacing: '5px'}}
-                                    />
+                                <div className="register-footer">
+                                    <button
+                                        type="button"
+                                        className="register-btn register-btn-secondary"
+                                        onClick={() => setVerificationStep(false)}
+                                    >
+                                        ← Volver
+                                    </button>
+                                    <button type="submit" className="register-btn register-btn-primary">
+                                        Verificar y Activar
+                                    </button>
                                 </div>
-                                <button type="submit" className="btn btn-success" style={{ width: '100%', marginTop: '10px' }}>
-                                    Verificar y Activar
-                                </button>
-                                <button 
-                                    type="button" 
-                                    className="btn btn-secondary" 
-                                    style={{ width: '100%', marginTop: '10px' }}
-                                    onClick={() => setVerificationStep(false)}
-                                >
-                                    Volver / Corregir Correo
-                                </button>
-                             </form>
+                            </form>
                         ) : (
-                        <form onSubmit={handleRegisterSubmit}>
-                             <div className="form-group">
-                                <label>Rol</label>
-                                <select 
-                                    value={regData.role}
-                                    onChange={e => setRegData({...regData, role: e.target.value, dependency: e.target.value === 'Estudiante' ? 'Contaduria Publica' : ''})}
-                                    style={{ width: '100%', padding: '8px' }}
-                                >
-                                    <option value="Estudiante">Estudiante</option>
-                                    <option value="Docente">Docente</option>
-                                    <option value="Coordinador">Coordinador</option>
-                                    <option value="Asistente">Asistente</option>
-                                </select>
-                            </div>
+                            /* ---- REGISTRATION FORM ---- */
+                            <form onSubmit={handleRegisterSubmit}>
+                                <div className="register-body">
+                                    {/* Rol */}
+                                    <div className="register-field">
+                                        <label className="register-label">
+                                            Rol <span className="required-mark">*</span>
+                                        </label>
+                                        <select
+                                            className="register-select"
+                                            value={regData.role}
+                                            onChange={e => setRegData({ ...regData, role: e.target.value, dependency: e.target.value === 'Estudiante' ? 'Contaduria Publica' : '' })}
+                                        >
+                                            <option value="Estudiante">Estudiante</option>
+                                            <option value="Docente">Docente</option>
+                                            <option value="Coordinador">Coordinador</option>
+                                            <option value="Asistente">Asistente</option>
+                                        </select>
+                                    </div>
 
-                            <div className="form-group">
-                                <label>Nombre Completo</label>
-                                <input 
-                                    value={regData.full_name}
-                                    onChange={e => setRegData({...regData, full_name: e.target.value})}
-                                    required
-                                />
-                            </div>
+                                    {/* Nombre Completo */}
+                                    <div className="register-field">
+                                        <label className="register-label">
+                                            Nombre Completo <span className="required-mark">*</span>
+                                        </label>
+                                        <input
+                                            className="register-input"
+                                            type="text"
+                                            value={regData.full_name}
+                                            onChange={e => setRegData({ ...regData, full_name: e.target.value })}
+                                            required
+                                            placeholder="Ej: Juan Pérez García"
+                                        />
+                                    </div>
 
-                             <div className="form-group">
-                                <label>Identificación</label>
-                                <input 
-                                    value={regData.id}
-                                    onChange={e => setRegData({...regData, id: e.target.value})}
-                                    required
-                                />
-                            </div>
+                                    {/* Identificación */}
+                                    <div className="register-field">
+                                        <label className="register-label">
+                                            Identificación <span className="required-mark">*</span>
+                                        </label>
+                                        <input
+                                            className="register-input"
+                                            type="text"
+                                            value={regData.id}
+                                            onChange={e => setRegData({ ...regData, id: e.target.value })}
+                                            required
+                                            placeholder="Número de identificación"
+                                        />
+                                    </div>
 
-                             <div className="form-group">
-                                <label>Email (Obligatorio)</label>
-                                <input 
-                                    type="email"
-                                    value={regData.email}
-                                    onChange={e => setRegData({...regData, email: e.target.value})}
-                                    required
-                                />
-                            </div>
+                                    {/* Email */}
+                                    <div className="register-field">
+                                        <label className="register-label">
+                                            Correo Electrónico <span className="required-mark">*</span>
+                                        </label>
+                                        <input
+                                            className={`register-input ${regData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regData.email) ? 'input-error' : regData.email ? 'input-success' : ''}`}
+                                            type="email"
+                                            value={regData.email}
+                                            onChange={e => setRegData({ ...regData, email: e.target.value })}
+                                            required
+                                            placeholder="correo@ejemplo.com"
+                                        />
+                                        {regData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regData.email) && (
+                                            <div className="field-hint hint-error">⚠ Ingresa un correo válido</div>
+                                        )}
+                                        {regData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regData.email) && (
+                                            <div className="field-hint hint-success">✓ Correo válido</div>
+                                        )}
+                                    </div>
 
-                             <div className="form-group">
-                                <label>Dependencia / Programa</label>
-                                {regData.role === 'Estudiante' ? (
-                                    <select 
-                                        value={regData.dependency}
-                                        onChange={e => setRegData({...regData, dependency: e.target.value})}
-                                        style={{ width: '100%', padding: '8px' }}
-                                    >
-                                        {PROGRAMS.map(prog => (
-                                            <option key={prog} value={prog}>{prog}</option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <input 
-                                        type="text"
-                                        placeholder={regData.role === 'Docente' ? "Facultad / Departamento" : "Área"}
-                                        value={regData.dependency}
-                                        onChange={e => setRegData({...regData, dependency: e.target.value})}
-                                    />
-                                )}
-                            </div>
+                                    {/* Dependencia / Programa */}
+                                    <div className="register-field">
+                                        <label className="register-label">
+                                            {regData.role === 'Estudiante' ? 'Programa Académico' : 'Dependencia / Área'} <span className="required-mark">*</span>
+                                        </label>
+                                        {regData.role === 'Estudiante' ? (
+                                            <select
+                                                className="register-select"
+                                                value={regData.dependency}
+                                                onChange={e => setRegData({ ...regData, dependency: e.target.value })}
+                                            >
+                                                {PROGRAMS.map(prog => (
+                                                    <option key={prog} value={prog}>{prog}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <input
+                                                className="register-input"
+                                                type="text"
+                                                placeholder={regData.role === 'Docente' ? 'Facultad / Departamento' : 'Área'}
+                                                value={regData.dependency}
+                                                onChange={e => setRegData({ ...regData, dependency: e.target.value })}
+                                            />
+                                        )}
+                                    </div>
 
-                             <div className="form-group">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                                    <label style={{ margin: 0 }}>Contraseña</label>
-                                    <small 
-                                        onClick={suggestPassword} 
-                                        style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 'bold' }}
-                                    >
-                                        🪄 Sugerir
-                                    </small>
+                                    {/* Contraseña */}
+                                    <div className="register-field">
+                                        <div className="register-password-header">
+                                            <label className="register-label" style={{ marginBottom: 0 }}>
+                                                Contraseña <span className="required-mark">*</span>
+                                            </label>
+                                            <button type="button" className="register-suggest-btn" onClick={suggestPassword}>
+                                                🪄 Sugerir
+                                            </button>
+                                        </div>
+                                        <input
+                                            className={`register-input ${regData.password && regData.password.length < 6 ? 'input-error' : ''}`}
+                                            type="text"
+                                            value={regData.password}
+                                            onChange={e => setRegData({ ...regData, password: e.target.value })}
+                                            required
+                                            minLength={6}
+                                            placeholder="Mínimo 6 caracteres"
+                                        />
+                                        {/* Password strength bar */}
+                                        {regData.password && (
+                                            <>
+                                                <div className="password-strength">
+                                                    <div
+                                                        className="password-strength-fill"
+                                                        style={{
+                                                            width: regData.password.length < 6 ? '25%' : regData.password.length < 8 ? '50%' : regData.password.length < 12 ? '75%' : '100%',
+                                                            background: regData.password.length < 6 ? '#ef4444' : regData.password.length < 8 ? '#f59e0b' : regData.password.length < 12 ? '#3b82f6' : '#22c55e'
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div className={`field-hint ${regData.password.length < 6 ? 'hint-error' : 'hint-success'}`}>
+                                                    {regData.password.length < 6 ? '⚠ Mínimo 6 caracteres' :
+                                                        regData.password.length < 8 ? '🔑 Aceptable' :
+                                                            regData.password.length < 12 ? '🔐 Buena' : '🛡️ Muy segura'}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* Confirmar Contraseña */}
+                                    <div className="register-field">
+                                        <label className="register-label">
+                                            Confirmar Contraseña <span className="required-mark">*</span>
+                                        </label>
+                                        <input
+                                            className={`register-input ${regData.confirmPassword && regData.confirmPassword !== regData.password ? 'input-error' : regData.confirmPassword && regData.confirmPassword === regData.password ? 'input-success' : ''}`}
+                                            type="password"
+                                            value={regData.confirmPassword}
+                                            onChange={e => setRegData({ ...regData, confirmPassword: e.target.value })}
+                                            required
+                                            placeholder="Repite tu contraseña"
+                                        />
+                                        {regData.confirmPassword && regData.confirmPassword !== regData.password && (
+                                            <div className="field-hint hint-error">⚠ Las contraseñas no coinciden</div>
+                                        )}
+                                        {regData.confirmPassword && regData.confirmPassword === regData.password && (
+                                            <div className="field-hint hint-success">✓ Las contraseñas coinciden</div>
+                                        )}
+                                    </div>
                                 </div>
-                                <input 
-                                    type="text" 
-                                    value={regData.password}
-                                    onChange={e => setRegData({...regData, password: e.target.value})}
-                                    required
-                                    minLength={6}
-                                />
-                            </div>
-                             <div className="form-group">
-                                <label>Confirmar Contraseña</label>
-                                <input 
-                                    type="password"
-                                    value={regData.confirmPassword}
-                                    onChange={e => setRegData({...regData, confirmPassword: e.target.value})}
-                                    required
-                                />
-                            </div>
 
-                            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '10px' }}>
-                                Registrarse
-                            </button>
-                        </form>
+                                {/* ---- FOOTER ---- */}
+                                <div className="register-footer">
+                                    <button
+                                        type="button"
+                                        className="register-btn register-btn-secondary"
+                                        onClick={() => setShowRegister(false)}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" className="register-btn register-btn-primary">
+                                        Registrarse
+                                    </button>
+                                </div>
+                            </form>
                         )}
                     </div>
                 </div>

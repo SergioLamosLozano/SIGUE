@@ -34,7 +34,7 @@ const UserManagement = () => {
     });
 
     // Configuración API
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     const authConfig = { headers: { Authorization: `Bearer ${token}` } };
     const API_URL = 'http://localhost:8000/api/users/manage/';
 

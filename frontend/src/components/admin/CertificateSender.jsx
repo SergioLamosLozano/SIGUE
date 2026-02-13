@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import api from '../../services/api';
+import { showSuccess, showError } from '../../services/alert';
 import '../../styles/Certificados.css';
 import '../../styles/CertificateSender.css';
 
@@ -14,15 +15,15 @@ const CertificateSender = ({ onBack }) => {
         const fetchEvents = async () => {
             try {
                 const response = await api.get('/eventos/');
-                
+
                 // Asegurar array y ordenar por fecha (más reciente primero)
-                const eventList = Array.isArray(response.data) 
-                    ? response.data 
+                const eventList = Array.isArray(response.data)
+                    ? response.data
                     : (response.data.results || []);
-                
+
                 // Ordenamiento descendente por fecha
                 eventList.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-                
+
                 setEvents(eventList);
             } catch (error) {
                 console.error("Error cargando eventos:", error);
@@ -73,7 +74,7 @@ const CertificateSender = ({ onBack }) => {
                 const response = await api.post('/certificates/generate-bulk/', {
                     event_id: selectedEventId
                 });
-                
+
                 Swal.fire({
                     title: '¡Generación Exitosa!',
                     text: `Se han creado ${response.data.count} certificados en el sistema.`,
@@ -91,41 +92,35 @@ const CertificateSender = ({ onBack }) => {
         }
     };
 
-    // ACCIÓN 2: ENVIAR (Email)
+    // ACCIÓN 2: ENVIAR (Email) — Fire & Forget (Backend procesa en segundo plano)
     const handleSend = async () => {
         if (!selectedEventId) return Swal.fire('Atención', 'Selecciona un evento primero.', 'warning');
 
         const confirmed = await confirmAction(
-            '¿Enviar Correos Masivos?', 
-            '⚠️ ATENCIÓN: Esta acción enviará los certificados por correo a los estudiantes.\n\n¿Estás seguro de continuar?',
-            'Sí, ENVIAR AHORA',
+            '¿Enviar Correos Masivos?',
+            '⚠️ Los certificados se enviarán en segundo plano para no bloquear el sistema. Recibirás un informe por email al finalizar. ¿Continuar?',
+            'Sí, Iniciar Envío',
             true // isWarning
         );
 
         if (confirmed.isConfirmed) {
             setLoading(true);
-            Swal.fire({
-                title: 'Enviando...',
-                text: 'Esto puede tomar unos momentos. No cierre la ventana.',
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-            });
-            
+
             try {
-                const res = await api.post('/certificates/send-bulk/', {
+                // El backend ahora responde rápido (proceso en segundo plano)
+                await api.post('/certificates/send-bulk/', {
                     event_id: selectedEventId
                 });
 
-                Swal.fire({
-                    title: '¡Enviados!',
-                    html: `Proceso finalizado.<br/><b>Enviados:</b> ${res.data.sent_count}<br/><b>Errores:</b> ${res.data.error_count}`,
-                    icon: 'success',
-                    confirmButtonColor: '#D52B1E'
-                });
+                showSuccess(
+                    '¡Ejecutando en Segundo Plano!',
+                    'El sistema está enviando los correos. Puedes seguir trabajando; te notificaremos por email al terminar.'
+                );
 
             } catch (error) {
-                console.error("Envío fallido:", error);
-                Swal.fire('Error', 'No se pudieron enviar los correos. Verifique que los certificados estén generados.', 'error');
+                console.error("Error al iniciar envío:", error);
+                const msg = error.response?.data?.error || 'No se pudo iniciar el proceso de envío.';
+                showError('Error', msg);
             } finally {
                 setLoading(false);
             }
@@ -156,7 +151,7 @@ const CertificateSender = ({ onBack }) => {
                 {/* SELECTOR */}
                 <div className="sender-form-group">
                     <label className="sender-label">1. Seleccionar Evento:</label>
-                    <select 
+                    <select
                         className="sender-select"
                         value={selectedEventId}
                         onChange={(e) => setSelectedEventId(e.target.value)}
@@ -172,11 +167,11 @@ const CertificateSender = ({ onBack }) => {
                 </div>
 
                 {/* ACTIONS GRID */}
-                <label className="sender-label" style={{marginBottom: '15px'}}>2. Ejecutar Acciones:</label>
+                <label className="sender-label" style={{ marginBottom: '15px' }}>2. Ejecutar Acciones:</label>
                 <div className={`sender-action-grid ${!selectedEventId ? 'disabled' : ''}`}>
-                    
+
                     {/* Generar Button */}
-                    <button 
+                    <button
                         className="btn-action-card btn-action-generate"
                         onClick={handleGenerate}
                         disabled={loading}
@@ -187,7 +182,7 @@ const CertificateSender = ({ onBack }) => {
                     </button>
 
                     {/* Enviar Button */}
-                    <button 
+                    <button
                         className="btn-action-card btn-action-send"
                         onClick={handleSend}
                         disabled={loading}

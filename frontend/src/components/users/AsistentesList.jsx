@@ -11,7 +11,7 @@ function AsistentesList() {
   const [asistentes, setAsistentes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Estado de Modales
   const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -137,15 +137,15 @@ function AsistentesList() {
       // Nota: Si no existe en imports, esto fallará. Debe existir en api.js.
       // Si no existe, axios.post('/asistentes/importar_excel/') es la alternativa.
       // Como no lo veo importado arriba, usaré la lógica genérica si falla
-      
+
       // const response = await importarAsistentesExcel(formData); 
       // Si no está importado, mejor usar axios directo para asegurar:
-       const response = await axios.post('http://localhost:8000/api/asistentes/importar_excel/', formData, {
-           headers: { 
-               'Content-Type': 'multipart/form-data',
-               'Authorization': `Bearer ${localStorage.getItem('token')}`
-           }
-       });
+      const response = await axios.post('http://localhost:8000/api/asistentes/importar_excel/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${sessionStorage.getItem('token')}`
+        }
+      });
 
       alert(`Importación completada:\nCreados: ${response.data.creados}\nActualizados: ${response.data.actualizados}\nErrores: ${response.data.errores.length}`);
       setShowImportModal(false);
@@ -166,15 +166,15 @@ function AsistentesList() {
       <div className="estudiantes-header">
         <h2>Lista de Asistentes</h2>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button 
-            className="btn btn-primary" 
+          <button
+            className="btn btn-primary"
             onClick={handleExportarCSV}
             title="Descargar lista completa en formato CSV"
           >
             📊 Exportar CSV
           </button>
-          <button 
-            className="btn btn-secondary" 
+          <button
+            className="btn btn-secondary"
             onClick={() => setShowImportModal(true)}
             title="Importar asistentes desde Excel"
             style={{ backgroundColor: '#6c757d', color: 'white' }}
@@ -186,7 +186,7 @@ function AsistentesList() {
           </button>
         </div>
       </div>
-      
+
       <div className="alert alert-info" style={{ marginBottom: '1rem' }}>
         📋 Total de asistentes: <strong>{asistentes.length}</strong>
       </div>
@@ -214,15 +214,15 @@ function AsistentesList() {
                 <td>{asistente.telefono || <span style={{ color: '#888' }}>-</span>}</td>
                 <td>{asistente.sede || <span style={{ color: '#888' }}>-</span>}</td>
                 <td>
-                  <button 
-                    className="btn btn-sm btn-primary" 
+                  <button
+                    className="btn btn-sm btn-primary"
                     onClick={() => handleEdit(asistente)}
                     style={{ marginRight: '0.5rem' }}
                   >
                     ✏️ Editar
                   </button>
-                  <button 
-                    className="btn btn-sm btn-danger" 
+                  <button
+                    className="btn btn-sm btn-danger"
                     onClick={() => handleDelete(asistente.id)}
                   >
                     🗑️ Eliminar
@@ -325,7 +325,7 @@ function AsistentesList() {
                   <li>Sede</li>
                 </ul>
               </div>
-              
+
               <div className="form-group">
                 <label>Seleccionar Archivo Excel (.xlsx, .xls)</label>
                 <input
@@ -336,7 +336,7 @@ function AsistentesList() {
                   style={{ padding: '10px', border: '1px solid #ddd', width: '100%' }}
                 />
               </div>
-              
+
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowImportModal(false)} disabled={importing}>
                   Cancelar

@@ -1,6 +1,6 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import CustomUser, Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle, GeneratedCertificate
+from .models import CustomUser, Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle, GeneratedCertificate, LugarEvento
 import random
 from django.core.mail import send_mail
 from django.conf import settings
@@ -65,7 +65,7 @@ class RegisterSerializer(serializers.ModelSerializer):
              print(f"DEBUG CODE for {user.email}: {code}") # Para facilitar pruebas locales
              send_mail(
                 'Confirma tu cuenta - SIGUE',
-                f'Hola {user.full_name},\\n\\nTu código de verificación es: {code}',
+                f'Hola {user.full_name}, Tu código de verificación es: {code}',
                 settings.DEFAULT_FROM_EMAIL,
                 [user.email],
                 fail_silently=False,
@@ -200,6 +200,13 @@ class EstudianteActivoSerializer(serializers.ModelSerializer):
         model = EstudianteActivoUnivalle
         fields = ['codigo_estudiante', 'nombre', 'correo', 'programa', 'programa_nombre']
 
+
+class LugarEventoSerializer(serializers.ModelSerializer):
+    """Serializador para Lugares de Evento."""
+    class Meta:
+        model = LugarEvento
+        fields = ['id', 'descripcion']
+
 class EventoSerializer(serializers.ModelSerializer):
     """
     Serializador para Eventos.
@@ -208,6 +215,7 @@ class EventoSerializer(serializers.ModelSerializer):
     """
     creado_por_nombre = serializers.CharField(source='creado_por.full_name', read_only=True)
     ya_inscrito = serializers.SerializerMethodField()
+    lugar_nombre = serializers.CharField(source='lugar.descripcion', read_only=True)
     
     # Campos para programas dirigidos
     programas_dirigidos = ProgramaSerializer(many=True, read_only=True)
@@ -228,9 +236,9 @@ class EventoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Evento
-        fields = ['id', 'titulo', 'descripcion', 'fecha', 'fecha_fin', 'lugar', 'creado_por', 'creado_por_nombre', 'fecha_creacion', 'ya_inscrito',
+        fields = ['id', 'titulo', 'descripcion', 'fecha', 'fecha_fin', 'lugar', 'lugar_nombre', 'creado_por', 'creado_por_nombre', 'fecha_creacion', 'ya_inscrito',
                  'flyer', 'flyer_base64', 'has_flyer', 'flyer_filename', 'flyer_content_type',
-                 'requiere_refrigerio', 'cantidad_refrigerios', 'detalles_refrigerios', 'asistencia_qr', 'estado',
+                 'requiere_entregable', 'cantidad_entregables', 'detalles_entregables', 'asistencia_qr', 'estado',
                  'programas_dirigidos', 'programas_dirigidos_ids']
         read_only_fields = ['creado_por', 'fecha_creacion', 'estado', 'flyer_filename', 'flyer_content_type']
 

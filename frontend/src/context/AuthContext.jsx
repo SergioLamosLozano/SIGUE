@@ -11,9 +11,9 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         const checkLoggedIn = async () => {
-            const token = localStorage.getItem('token');
-            const storedUser = localStorage.getItem('user');
-            
+            const token = sessionStorage.getItem('token');
+            const storedUser = sessionStorage.getItem('user');
+
             if (token && storedUser) {
                 setUser(JSON.parse(storedUser));
                 axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -29,13 +29,13 @@ export const AuthProvider = ({ children }) => {
                 id,
                 password
             });
-            
+
             const { access, refresh, ...userData } = response.data;
-            
-            localStorage.setItem('token', access);
-            localStorage.setItem('refreshToken', refresh);
-            localStorage.setItem('user', JSON.stringify(userData));
-            
+
+            sessionStorage.setItem('token', access);
+            sessionStorage.setItem('refreshToken', refresh);
+            sessionStorage.setItem('user', JSON.stringify(userData));
+
             axios.defaults.headers.common['Authorization'] = `Bearer ${access}`;
             setUser(userData);
             return true;
@@ -46,9 +46,9 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('refreshToken');
+        sessionStorage.removeItem('user');
         delete axios.defaults.headers.common['Authorization'];
         setUser(null);
     };
@@ -60,9 +60,9 @@ export const AuthProvider = ({ children }) => {
             const updatedUser = { ...user, ...res.data };
             // Password is not returned usually, or if it is we don't store plain text. 
             // The serializer returns: id, full_name, email, role, dependency.
-            
+
             setUser(updatedUser);
-            localStorage.setItem('user', JSON.stringify(updatedUser));
+            sessionStorage.setItem('user', JSON.stringify(updatedUser));
             return true;
         } catch (error) {
             console.error("Update Profile Error:", error);
