@@ -1,5 +1,5 @@
 import React from 'react';
-import './UnivalleCube.css';
+import '../styles/UnivalleCube.css';
 
 const UnivalleCube = () => {
     
