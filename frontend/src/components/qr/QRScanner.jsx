@@ -17,6 +17,8 @@ function QRScanner() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const isProcessing = useRef(false); // Lock to prevent double-scanning
+  const lastScannedCode = useRef(null); // Último código escaneado (anti-rebote)
+  const lastScanTime = useRef(0); // Timestamp del último escaneo
 
   // Referencias para control de librería y foco
   const [scanner, setScanner] = useState(null);
@@ -91,14 +93,28 @@ function QRScanner() {
    * Callback ejecutado cuando se detecta un QR válido por cámara.
    */
   const onScanSuccess = async (decodedText) => {
-    if (isProcessing.current) return;
-    isProcessing.current = true;
+    const currentTime = Date.now();
+    const codigoLimpio = decodedText.trim();
 
-    console.log('QR escaneado:', decodedText);
-    stopScanning(); // Detener cámara tras lectura exitosa
+    // --- BLOQUEO DE REBOTE (Cooldown de 3 segundos para el MISMO código) ---
+    if (codigoLimpio === lastScannedCode.current && (currentTime - lastScanTime.current) < 3000) {
+        console.log("Ignorando lectura duplicada:", codigoLimpio);
+        return; // Salimos sin hacer nada, ignoramos este escaneo
+    }
+
+    // Si ya estamos procesando otra petición diferente, también salimos
+    if (isProcessing.current) return;
+    
+    // Iniciamos proceso
+    isProcessing.current = true;
+    lastScannedCode.current = codigoLimpio; // Guardamos este código
+    lastScanTime.current = currentTime;     // Guardamos la hora
+
+    console.log('Procesando QR:', codigoLimpio);
+    stopScanning(); // Pausamos la cámara para que el usuario vea el resultado
 
     try {
-      const response = await validarCodigoQR(decodedText);
+      const response = await validarCodigoQR(codigoLimpio);
       setResult({
         success: true,
         mensaje: response.data.mensaje,
@@ -107,19 +123,21 @@ function QRScanner() {
         fecha_uso: response.data.fecha_uso
       });
       setError(null);
+
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Error al validar el código QR';
-      const asistenteInfo = err.response?.data?.asistente || null;
       setError({
         mensaje: errorMsg,
-        asistente: asistenteInfo,
+        asistente: err.response?.data?.asistente || null,
         tipo_comida: err.response?.data?.tipo_comida,
         fecha_uso: err.response?.data?.fecha_uso
       });
       setResult(null);
+
     } finally {
-      // Optional: unlock after delay if needed, but since we stopped scanning, it's fine.
       isProcessing.current = false;
+      // No reiniciamos el scanner automáticamente para que el usuario
+      // tenga tiempo de leer el mensaje. Tendrá que darle a "Iniciar Escáner" de nuevo.
     }
   };
 
@@ -156,7 +174,7 @@ function QRScanner() {
       // Auto-ocultar éxito tras 5 segundos
       setTimeout(() => {
         setResult(null);
-      }, 5000);
+      }, 10000);
 
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Error al validar el código QR';
@@ -173,7 +191,7 @@ function QRScanner() {
 
       setTimeout(() => {
         setError(null);
-      }, 5000);
+      }, 10000);
     }
   };
 
