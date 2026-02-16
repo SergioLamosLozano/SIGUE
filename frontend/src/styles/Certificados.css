@@ -82,6 +82,26 @@
     background: var(--bg-light);
     border-radius: var(--radius-lg);
     transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.certificates-feature-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Feature Card Variants */
+.certificates-feature-card--designer {
+    border: 1px solid var(--primary-color);
+}
+
+.certificates-feature-card--sender {
+    border: 1px solid #1a5f2a;
+    background-color: #f0f9f0;
+}
+
+.certificates-feature-card--history {
+    border: 1px solid #4B5563;
 }
 
 .certificates-feature-card--placeholder {
@@ -104,6 +124,18 @@
 .certificates-feature-card__status {
     color: var(--border-color);
     font-size: 0.85rem;
+}
+
+.certificates-feature-card__status--primary {
+    color: var(--primary-color);
+}
+
+.certificates-feature-card__status--green {
+    color: #1a5f2a;
+}
+
+.certificates-feature-card__status--gray {
+    color: #4B5563;
 }
 
 /* ===== LEGACY CONTAINER (for existing Certificados.jsx) ===== */

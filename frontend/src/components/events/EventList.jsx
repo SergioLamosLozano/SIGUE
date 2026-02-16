@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 import { showSuccess, showError, showConfirm } from '../../services/alert';
+import UserCertificates from '../common/UserCertificates';
 import '../../styles/EventList.css';
 
 /**
@@ -34,7 +35,6 @@ const EventList = ({ canCreate = false }) => {
         descripcion: '',
         fecha: '',
         fecha_fin: '',
-        lugar: '',
         lugar: '',
         requiere_entregable: false,
         cantidad_entregables: 0,
@@ -411,11 +411,19 @@ const EventList = ({ canCreate = false }) => {
                     >
                         🕒 Historial
                     </button>
+                    <button
+                        className={`tab-button ${activeTab === 'certificates' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('certificates')}
+                    >
+                        📜 Mis Certificados
+                    </button>
                 </div>
             )}
 
-            {/* LISTA DE EVENTOS (GRID) */}
-            {displayedEvents.length === 0 ? (
+            {/* CONTENIDO DE LA PESTAÑA CERTIFICADOS */}
+            {activeTab === 'certificates' && !isAdmin ? (
+                <UserCertificates />
+            ) : displayedEvents.length === 0 ? (
                 <div className="empty-state">
                     <h3>No hay eventos en esta sección</h3>
                     <p>

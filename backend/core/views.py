@@ -755,39 +755,68 @@ Universidad del Valle - SIGUE
     @action(detail=True, methods=['get'])
     def exportar_asistentes_excel(self, request, pk=None):
         """
-        Genera un archivo CSV descargable con la lista de asistentes confirmados.
+        Genera un archivo .xlsx descargable con la lista de inscritos al evento.
+        Usa openpyxl para compatibilidad con caracteres latinos.
         """
-        import csv
+        import openpyxl
         from django.http import HttpResponse
 
         evento = self.get_object()
-        
-        # Filtrar inscripciones con asistencia confirmada
+
+        # Filtrar solo inscripciones con asistencia CONFIRMADA
         inscripciones = evento.inscripciones.filter(asistio=True).select_related('usuario')
 
-        response = HttpResponse(
-            content_type='text/csv',
-            headers={'Content-Disposition': f'attachment; filename="asistentes_{evento.id}.csv"'},
-        )
-        
-        # BOM para que Excel reconozca UTF-8 automáticamente
-        response.write(u'\ufeff'.encode('utf8'))
+        # Crear libro de Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f"Asistentes"
 
-        writer = csv.writer(response)
-        writer.writerow(['Identificación', 'Nombre Completo', 'Email', 'Rol', 'Dependencia/Sede', 'Fecha Inscripción'])
+        # Encabezados
+        headers = ['Identificación', 'Nombre Completo', 'Email', 'Rol', 'Dependencia/Sede', 'Estado Asistencia', 'Fecha Inscripción']
+        ws.append(headers)
 
+        # Estilizar encabezados (negrita)
+        from openpyxl.styles import Font
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+
+        # Llenar filas
         for ins in inscripciones:
             user = ins.usuario
-            writer.writerow([
+            estado = "Asistió" if ins.asistio else "Pendiente"
+            fecha = ins.fecha_inscripcion.replace(tzinfo=None) if ins.fecha_inscripcion else ''
+
+            ws.append([
                 user.id,
                 user.full_name,
-                user.email,
+                user.email or 'N/A',
                 user.role,
                 user.dependency or 'N/A',
-                ins.fecha_inscripcion.strftime("%Y-%m-%d %H:%M")
+                estado,
+                fecha,
             ])
 
-        return Response(response)
+        # Autoajustar ancho de columnas
+        for column_cells in ws.columns:
+            max_length = 0
+            column_letter = column_cells[0].column_letter
+            for cell in column_cells:
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            ws.column_dimensions[column_letter].width = min(max_length + 2, 40)
+
+        # Preparar respuesta HTTP
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="Asistentes_Evento_{evento.id}.xlsx"'
+
+        # Guardar workbook directamente en la respuesta
+        wb.save(response)
+        return response
 
 # -----------------------------------------------------------------------------
 # ASISTENTE LEGACY VIEWSET

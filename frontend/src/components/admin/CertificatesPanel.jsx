@@ -49,35 +49,32 @@ const CertificatesPanel = () => {
                     <div className="certificates-features">
                         {/* PLANTILLA CARD */}
                         <div 
-                            className="certificates-feature-card" 
+                            className="certificates-feature-card certificates-feature-card--designer" 
                             onClick={() => setView('designer')}
-                            style={{ cursor: 'pointer', border: '1px solid var(--primary-color)' }}
                         >
                             <span className="certificates-feature-card__icon">🎨</span>
                             <p className="certificates-feature-card__title">Diseñador de Plantillas</p>
-                            <small className="certificates-feature-card__status" style={{color: 'var(--primary-color)'}}>Editor Visual</small>
+                            <small className="certificates-feature-card__status certificates-feature-card__status--primary">Editor Visual</small>
                         </div>
 
                         {/* BULK GENERATION CARD */}
                         <div 
-                            className="certificates-feature-card"
+                            className="certificates-feature-card certificates-feature-card--sender"
                             onClick={() => setView('sender')}
-                            style={{ cursor: 'pointer', border: '1px solid #1a5f2a', backgroundColor: '#f0f9f0' }}
                         >
                             <span className="certificates-feature-card__icon">🚀</span>
                             <p className="certificates-feature-card__title">Generación Masiva</p>
-                            <small className="certificates-feature-card__status" style={{color: '#1a5f2a'}}>Generar y Enviar</small>
+                            <small className="certificates-feature-card__status certificates-feature-card__status--green">Generar y Enviar</small>
                         </div>
 
                         {/* HISTORY CARD */}
                         <div 
-                            className="certificates-feature-card"
+                            className="certificates-feature-card certificates-feature-card--history"
                             onClick={() => setView('history')}
-                            style={{ cursor: 'pointer', border: '1px solid #4B5563' }}
                         >
                             <span className="certificates-feature-card__icon">📂</span>
                             <p className="certificates-feature-card__title">Historial y Descargas</p>
-                            <small className="certificates-feature-card__status" style={{color: '#4B5563'}}>Consulta certificados generados</small>
+                            <small className="certificates-feature-card__status certificates-feature-card__status--gray">Consulta certificados generados</small>
                         </div>
                     </div>
                 </div>
@@ -93,7 +90,7 @@ const CertificatesPanel = () => {
                     <CertificateSender onBack={() => setView('menu')} />
                 )}
 
-                {/* Main Content: SENDER */}
+                {/* Main Content: HISTORY */}
                 {view === 'history' && (
                     <CertificateHistory onBack={() => setView('menu')} />
                 )}

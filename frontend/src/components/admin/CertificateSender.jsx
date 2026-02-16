@@ -167,7 +167,7 @@ const CertificateSender = ({ onBack }) => {
                 </div>
 
                 {/* ACTIONS GRID */}
-                <label className="sender-label" style={{ marginBottom: '15px' }}>2. Ejecutar Acciones:</label>
+                <label className="sender-label sender-label--spaced">2. Ejecutar Acciones:</label>
                 <div className={`sender-action-grid ${!selectedEventId ? 'disabled' : ''}`}>
 
                     {/* Generar Button */}

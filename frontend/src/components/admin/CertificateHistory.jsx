@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
-import '../../styles/Certificados.css'; // Usamos los mismos estilos base
-import '../../styles/CertificateHistory.css'; // Estilos específicos de la tabla
+import '../../styles/Certificados.css';
+import '../../styles/CertificateHistory.css';
 
-// Recibimos 'onBack' como prop para mantener consistencia con el panel padre
 const CertificateHistory = ({ onBack }) => {
     const navigate = useNavigate();
     const [events, setEvents] = useState([]);
     const [selectedEventId, setSelectedEventId] = useState('');
     const [certificates, setCertificates] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [downloading, setDownloading] = useState(null);
     
     // Selection State
     const [selectedIds, setSelectedIds] = useState([]);
@@ -23,7 +23,6 @@ const CertificateHistory = ({ onBack }) => {
             try {
                 const res = await api.get('/eventos/');
                 const list = Array.isArray(res.data) ? res.data : (res.data.results || []);
-                // Sort by most recent
                 list.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
                 setEvents(list);
             } catch (error) {
@@ -44,16 +43,12 @@ const CertificateHistory = ({ onBack }) => {
         const fetchCertificates = async () => {
             setLoading(true);
             try {
-                // Endpoint: GET /certificates/?event_id=XYZ
                 const res = await api.get(`/certificates/?event_id=${selectedEventId}`);
-                
-                // Ensure data structure
                 const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
                 setCertificates(data);
-                setSelectedIds([]); // Reset selection on event change
+                setSelectedIds([]);
             } catch (error) {
                 console.error("Error loading certificates", error);
-                // Swal.fire('Error', 'No se encontraron certificados para este evento o hubo un error.', 'error');
                 setCertificates([]);
             } finally {
                 setLoading(false);
@@ -66,7 +61,6 @@ const CertificateHistory = ({ onBack }) => {
     // Handlers
     const handleSelectAll = (e) => {
         if (e.target.checked) {
-            // Select all visible (filtered) certificates
             const allIds = filteredCertificates.map(c => c.id);
             setSelectedIds(allIds);
         } else {
@@ -82,39 +76,31 @@ const CertificateHistory = ({ onBack }) => {
         }
     };
 
-    // 1. FUNCIÓN PARA DESCARGA INDIVIDUAL
+    // Descarga individual
     const handleDownloadSingle = async (certId, filename) => {
+        setDownloading(certId);
         try {
-            Swal.fire({
-                title: 'Descargando...',
-                didOpen: () => Swal.showLoading()
-            });
-
-            // Usamos 'api' para que viaje el Token
             const response = await api.get(`/certificates/${certId}/download/`, {
                 responseType: 'blob'
             });
 
-            // Crear enlace invisible para descargar
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', filename || `certificado_${certId}.pdf`);
             document.body.appendChild(link);
             link.click();
-            
-            // Limpieza
             link.remove();
             window.URL.revokeObjectURL(url);
-            Swal.close();
-
         } catch (error) {
             console.error(error);
             Swal.fire('Error', 'No se pudo descargar el archivo. Verifica tu sesión.', 'error');
+        } finally {
+            setDownloading(null);
         }
     };
 
-    // 2. FUNCIÓN PARA DESCARGA MASIVA
+    // Descarga masiva
     const handleDownloadZip = async () => {
         if (selectedIds.length === 0) return;
 
@@ -126,20 +112,17 @@ const CertificateHistory = ({ onBack }) => {
                 didOpen: () => Swal.showLoading()
             });
 
-            // Petición POST con JSON body: { certificate_ids: [...] }
             const response = await api.post('/certificates/download-zip/', 
                 { certificate_ids: selectedIds }, 
                 { responseType: 'blob' }
             );
 
-            // Descargar el ZIP
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', `Certificados_Lote_${new Date().getTime()}.zip`);
             document.body.appendChild(link);
             link.click();
-            
             link.remove();
             window.URL.revokeObjectURL(url);
 
@@ -162,9 +145,9 @@ const CertificateHistory = ({ onBack }) => {
     const isAllSelected = filteredCertificates.length > 0 && selectedIds.length === filteredCertificates.length;
 
     return (
-        <div className="certificate-sender-container"> {/* Usamos la misma clase container del Sender */}
+        <div className="certificate-sender-container">
             
-            {/* --- HEADER IDÉNTICO AL SENDER --- */}
+            {/* Header */}
             <div className="page-header-card">
                 <div className="page-header-card__left">
                     <button onClick={onBack} className="btn-back">
@@ -174,12 +157,12 @@ const CertificateHistory = ({ onBack }) => {
                 </div>
             </div>
 
-            {/* --- TARJETA DE CONTENIDO (Estilo Unificado) --- */}
-            <div className="sender-content" style={{maxWidth: '1200px'}}> {/* Un poco más ancho para la tabla */}
+            {/* Tarjeta de Contenido */}
+            <div className="sender-content sender-content--wide">
                 
-                {/* BARRA DE FILTROS */}
-                <div className="history-filters" style={{display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap'}}>
-                    <div className="sender-form-group" style={{flex: '1', minWidth: '300px'}}>
+                {/* Barra de Filtros */}
+                <div className="history-filters">
+                    <div className="sender-form-group history-filter-event">
                         <label className="sender-label">Evento:</label>
                         <select 
                             className="sender-select"
@@ -195,12 +178,11 @@ const CertificateHistory = ({ onBack }) => {
                         </select>
                     </div>
                     
-                    <div className="sender-form-group" style={{flex: '2', minWidth: '300px'}}>
+                    <div className="sender-form-group history-filter-search">
                         <label className="sender-label">Buscar Estudiante:</label>
                         <input 
                             type="text" 
-                            className="sender-select" // Reutilizamos estilo de input
-                            style={{padding: '12px'}}
+                            className="sender-select history-search-input"
                             placeholder="🔍 Buscar por nombre o identificación..." 
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
@@ -209,33 +191,24 @@ const CertificateHistory = ({ onBack }) => {
                     </div>
                 </div>
 
-                {/* BARRA DE ACCIONES MASIVAS (Condicional) */}
+                {/* Barra de Acciones Masivas */}
                 {selectedIds.length > 0 && (
-                    <div className="bulk-actions-bar" style={{
-                        background: '#fff1f0', 
-                        border: '1px solid #ffccc7', 
-                        padding: '10px 20px', 
-                        borderRadius: '8px',
-                        marginBottom: '20px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <span style={{fontWeight: 'bold', color: '#D52B1E'}}>{selectedIds.length} seleccionados</span>
+                    <div className="bulk-actions-bar">
+                        <span className="bulk-actions-count">{selectedIds.length} seleccionados</span>
                         <div className="actions-buttons">
-                            <button className="btn-secondary" onClick={handleDownloadZip} style={{background: 'white', border: '1px solid #ccc'}}>
+                            <button className="btn-secondary" onClick={handleDownloadZip}>
                                 ⬇️ Descargar ZIP
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* TABLA ESTILIZADA */}
+                {/* Tabla */}
                 <div className="table-responsive">
-                    <table className="modern-table" style={{width: '100%', borderCollapse: 'collapse'}}>
+                    <table className="modern-table">
                         <thead>
-                            <tr style={{background: '#f9fafb', borderBottom: '2px solid #e5e7eb'}}>
-                                <th style={{width: '40px', padding: '15px'}}>
+                            <tr>
+                                <th className="th-checkbox">
                                     <input 
                                         type="checkbox" 
                                         onChange={handleSelectAll} 
@@ -243,57 +216,56 @@ const CertificateHistory = ({ onBack }) => {
                                         disabled={filteredCertificates.length === 0}
                                     />
                                 </th>
-                                <th style={{textAlign: 'left', padding: '15px', color: '#374151'}}>Estudiante</th>
-                                <th style={{textAlign: 'left', padding: '15px', color: '#374151'}}>Identificación</th>
-                                <th style={{textAlign: 'left', padding: '15px', color: '#374151'}}>Fecha Generación</th>
-                                <th style={{textAlign: 'center', padding: '15px', color: '#374151'}}>Acciones</th>
+                                <th>Estudiante</th>
+                                <th>Identificación</th>
+                                <th>Fecha Generación</th>
+                                <th className="th-actions">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan="5" className="text-center p-5" style={{padding: '40px', textAlign: 'center', color: '#666'}}>
+                                    <td colSpan="5" className="td-status">
                                         Cargando certificados...
                                     </td>
                                 </tr>
                             ) : !selectedEventId ? (
                                 <tr>
-                                    <td colSpan="5" className="text-center p-5" style={{padding: '40px', textAlign: 'center', color: '#9ca3af'}}>
+                                    <td colSpan="5" className="td-status td-status--muted">
                                         Selecciona un evento arriba para ver el historial.
                                     </td>
                                 </tr>
                             ) : filteredCertificates.length === 0 ? (
                                 <tr>
-                                    <td colSpan="5" className="text-center p-5" style={{padding: '40px', textAlign: 'center', color: '#9ca3af'}}>
+                                    <td colSpan="5" className="td-status td-status--muted">
                                         No se encontraron certificados para este evento.
                                     </td>
                                 </tr>
                             ) : (
                                 filteredCertificates.map(cert => (
-                                    <tr key={cert.id} className={selectedIds.includes(cert.id) ? 'row-selected' : ''} style={{borderBottom: '1px solid #f3f4f6'}}>
-                                        <td style={{padding: '15px'}}>
+                                    <tr key={cert.id} className={selectedIds.includes(cert.id) ? 'row-selected' : ''}>
+                                        <td>
                                             <input 
                                                 type="checkbox" 
                                                 checked={selectedIds.includes(cert.id)}
                                                 onChange={(e) => handleSelectOne(cert.id, e.target.checked)} 
                                             />
                                         </td>
-                                        <td className="font-medium" style={{padding: '15px'}}>
+                                        <td className="font-medium">
                                             {cert.estudiante_nombre || cert.usuario?.full_name || 'Desconocido'}
-                                            <div style={{fontSize: '0.8rem', color: '#6b7280', fontWeight: 'normal'}}>
+                                            <div className="td-email-subtitle">
                                                 {cert.estudiante_email || cert.usuario?.email}
                                             </div>
                                         </td>
-                                        <td style={{padding: '15px'}}>{cert.estudiante_documento || cert.usuario?.id}</td>
-                                        <td style={{padding: '15px'}}>{new Date(cert.created_at || Date.now()).toLocaleDateString()}</td>
-                                        <td className="text-center" style={{padding: '15px', textAlign: 'center'}}>
+                                        <td>{cert.estudiante_documento || cert.usuario?.id}</td>
+                                        <td>{new Date(cert.created_at || Date.now()).toLocaleDateString()}</td>
+                                        <td className="td-actions">
                                             <button 
-                                                className="btn-icon" 
+                                                className="user-certs-download-btn"
                                                 onClick={() => handleDownloadSingle(cert.id, cert.filename)}
-                                                title="Descargar PDF"
-                                                style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem'}}
+                                                disabled={downloading === cert.id}
                                             >
-                                                👁️
+                                                {downloading === cert.id ? '⏳ Descargando...' : '📥 Descargar PDF'}
                                             </button>
                                         </td>
                                     </tr>
