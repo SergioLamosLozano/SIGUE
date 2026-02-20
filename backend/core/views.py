@@ -138,12 +138,12 @@ class EventoViewSet(viewsets.ModelViewSet):
         # Base query: Eventos aprobados
         queryset = Evento.objects.filter(estado='APROBADO')
 
-        if user.role == 'Coordinador':
-            # Coordinadores ven eventos aprobados y los suyos propios (pendientes)
+        if user.role in ['Coordinador', 'Docente']:
+            # Coordinadores y Docentes ven eventos aprobados + los suyos propios (pendientes/rechazados)
             mis_eventos = Evento.objects.filter(creado_por=user)
             queryset = queryset | mis_eventos
         
-        # Docentes y Estudiantes solo ven eventos aprobados (comportamiento default)
+        # Estudiantes solo ven eventos aprobados (comportamiento default)
         
         return queryset.distinct().order_by('-fecha')
     
@@ -163,15 +163,15 @@ class EventoViewSet(viewsets.ModelViewSet):
         """
         Asigna el creador.
         - Administrador: Crea eventos APROBADOS.
-        - Coordinador: Crea eventos PENDIENTES.
-        - Otros (Docente/Estudiante): No pueden crear eventos.
+        - Docente/Coordinador: Crea eventos PENDIENTES (requieren aprobación del admin).
+        - Estudiante: No puede crear eventos.
         
         Si enviar_difusion=true, envía correos a estudiantes de los programas seleccionados.
         """
         user = self.request.user
         
         from rest_framework.exceptions import PermissionDenied
-        if user.role in ['Estudiante', 'Docente']:
+        if user.role == 'Estudiante':
             raise PermissionDenied("No tienes permisos para crear eventos.")
 
         estado = 'APROBADO' if user.role == 'Administrador' else 'PENDIENTE'
