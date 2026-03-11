@@ -1,0 +1,166 @@
+/* CertificateDesigner.css */
+
+.certificate-designer-container {
+  height: 100%;
+  flex-direction: column;
+}
+
+.designer-header {
+  /* Inherits from .page-header-card (global) */
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.toolbar {
+  background: #f8f9fa;
+  padding: 8px 15px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.toolbar-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-add-signature {
+  background-color: #e7f1ff;
+  color: #0d6efd;
+  border-color: #c7d7f0;
+  font-weight: 600;
+}
+
+.divider-vertical {
+  width: 1px;
+  height: 24px;
+  background-color: #ddd;
+  margin: 0 10px;
+}
+
+.style-controls {
+  display: flex;
+  flex-direction: column;
+}
+
+.style-input {
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+/* --- WORKSPACE LAYOUT --- */
+.designer-workspace-wrapper {
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background-color: #f0f2f5;
+  padding: 30px;
+  border-radius: 12px;
+  overflow: auto;
+}
+
+.upload-zone-compact {
+  border: 2px dashed #ccc;
+  padding: 30px;
+  text-align: center;
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+}
+
+/* 1. NEW CARD CONTAINER FOR WORKSPACE */
+.designer-workspace-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px; /* Padding around the image */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: center;
+  /* Ensure it doesn't stretch infinitely */
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* 2. EXACT WRAPPER FOR IMAGE + DRAGGABLES */
+.canvas-exact-wrapper {
+  position: relative;
+  display: inline-block; /* Hug the image tightly */
+  line-height: 0; /* Remove vertical gap under image */
+  /* No overflow: hidden here, so draggables can be seen if slightly out? 
+     User requested strict containment, so bounds="parent" handles logic.
+     Visualize boundary just in case. */
+   overflow: hidden; 
+}
+
+/* DRAGGABLE ITEMS */
+.draggable-field {
+  position: absolute;
+  cursor: move;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px dashed #666;
+  color: #000;
+  padding: 5px 10px;
+  border-radius: 2px;
+  white-space: nowrap;
+  user-select: none;
+  /* Top/Left are handled by transform logic now, but start at 0,0 for correct offset calculation */
+  top: 0;
+  left: 0;
+  line-height: normal; /* Reset line-height */
+  
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.draggable-field:hover {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.draggable-field.selected {
+  border: 2px solid #D52B1E;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 12px rgba(213, 43, 30, 0.25);
+  z-index: 100 !important; /* Ensure on top */
+}
+
+.signature-badge {
+  font-size: 0.6em;
+  background: #eee;
+  padding: 2px 4px;
+  border-radius: 4px;
+  margin-left: 5px;
+  vertical-align: super;
+}
+
+.btn-back {
+  background: none;
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-back:hover {
+    background: #f3f4f6;
+}
+
+.btn-save {
+  background-color: #D52B1E;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.btn-save:hover {
+    background-color: #B91C1C;
+}

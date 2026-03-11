@@ -1,69 +1,82 @@
-/**
- * EventDashboard.jsx - Individual Event Management Dashboard
- * 
- * Displays event details, KPIs, action buttons, and attendee list.
- * Uses CSS classes from EventDashboard.css
- */
-
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
-import { showSuccess, showError, showConfirm, showToast } from '../../services/alert';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
+
+// Importamos tu instancia de API configurada (importante para que funcione el token)
+import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+
+import { showSuccess, showError, showConfirm } from '../../services/alert';
 import '../../styles/EventDashboard.css';
 
-// Register chart components
+// Registrar componentes de gráficos
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
 const EventDashboard = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
 
-    // Main states
+    // --- ESTADOS PRINCIPALES ---
     const [evento, setEvento] = useState(null);
     const [stats, setStats] = useState(null);
     const [inscritos, setInscritos] = useState([]);
+    const [isStaff, setIsStaff] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // Action button states
+    // Estados de botones de acción
     const [generating, setGenerating] = useState(false);
     const [sending, setSending] = useState(false);
     const [sendingDiffusion, setSendingDiffusion] = useState(false);
 
-    // Filter and pagination states
+    // Filtros y Paginación
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 20;
 
-    // Modal states
-    const [showCertModal, setShowCertModal] = useState(false);
+    // Estados de Visualización
     const [showStats, setShowStats] = useState(false);
     const [chartType, setChartType] = useState('pie');
-    const [certTemplate, setCertTemplate] = useState(null);
-    const [generatingCerts, setGeneratingCerts] = useState(false);
 
-    // Auth config
-    const token = localStorage.getItem('token');
-    const authConfig = { headers: { Authorization: `Bearer ${token}` } };
-
-    // --- DATA LOADING ---
-
+    // --- CARGA DE DATOS ---
     const fetchAllData = async () => {
         try {
             setLoading(true);
-            const resEvento = await axios.get(`http://localhost:8000/api/eventos/${id}/`, authConfig);
+            // Usamos Promise.all para eficiencia
+            const [resEvento, resStats, resInscritos, resMisEventosStaff] = await Promise.all([
+                api.get(`/eventos/${id}/`),
+                api.get(`/eventos/${id}/estadisticas/`),
+                api.get(`/eventos/${id}/inscritos/`),
+                api.get(`/eventos/mis-eventos-staff/`)
+            ]);
+
             setEvento(resEvento.data);
-
-            const resStats = await axios.get(`http://localhost:8000/api/eventos/${id}/estadisticas/`, authConfig);
             setStats(resStats.data);
-
-            const resInscritos = await axios.get(`http://localhost:8000/api/eventos/${id}/inscritos/`, authConfig);
             setInscritos(resInscritos.data);
+            
+            const staffEventIds = resMisEventosStaff.data.map(e => e.id);
+            setIsStaff(staffEventIds.includes(parseInt(id)));
+
+            // GUARD: Allow Admin, or Coordinator (only if APROBADO), or Staff
+            const canAccess = user?.role === 'Administrador' || 
+                             (user?.role === 'Coordinador' && resEvento.data.estado === 'APROBADO') ||
+                             staffEventIds.includes(parseInt(id));
+
+            if (!canAccess) {
+                showError(
+                    'Acceso Restringido',
+                    'No tienes permisos para acceder al dashboard de este evento o el evento no está aprobado aún.'
+                );
+                const redirectPath = user?.role === 'Coordinador' ? '/coordinador-dashboard/events' : 
+                                   (user?.role === 'Estudiante' ? '/student-dashboard' : '/teacher-dashboard');
+                navigate(redirectPath, { replace: true });
+                return;
+            }
 
         } catch (error) {
             console.error("Error fetching event data", error);
-            alert("Error al cargar datos del evento");
+            showError('Error', 'Error al cargar datos del evento');
         } finally {
             setLoading(false);
         }
@@ -73,7 +86,7 @@ const EventDashboard = () => {
         if (id) fetchAllData();
     }, [id]);
 
-    // --- MAIN ACTIONS ---
+    // --- ACCIONES (Lógica Original Restaurada) ---
 
     const handleGenerarQRs = async () => {
         const confirmed = await showConfirm('Generar QRs', '¿Estás seguro de generar códigos QR faltantes para todos los inscritos?');
@@ -81,7 +94,7 @@ const EventDashboard = () => {
 
         try {
             setGenerating(true);
-            const res = await axios.post(`http://localhost:8000/api/eventos/${id}/generar_qrs_masivo/`, {}, authConfig);
+            const res = await api.post(`/eventos/${id}/generar_qrs_masivo/`);
             showSuccess('¡Listo!', res.data.message);
             fetchAllData();
         } catch (error) {
@@ -97,7 +110,7 @@ const EventDashboard = () => {
 
         try {
             setSending(true);
-            const res = await axios.post(`http://localhost:8000/api/eventos/${id}/enviar_emails_evento/`, {}, authConfig);
+            const res = await api.post(`/eventos/${id}/enviar_emails_evento/`);
             if (res.data.error_count > 0 && res.data.error_details) {
                 showError('Atención', `${res.data.message}\n\nDetalles:\n${res.data.error_details.join('\n')}`);
             } else {
@@ -112,8 +125,7 @@ const EventDashboard = () => {
 
     const handleExportarExcel = async () => {
         try {
-            const res = await axios.get(`http://localhost:8000/api/eventos/${id}/exportar_asistentes_excel/`, {
-                headers: { Authorization: `Bearer ${token}` },
+            const res = await api.get(`/eventos/${id}/exportar_asistentes_excel/`, {
                 responseType: 'blob'
             });
 
@@ -131,86 +143,44 @@ const EventDashboard = () => {
 
     const handleEnviarDifusion = async () => {
         if (!evento.programas_dirigidos || evento.programas_dirigidos.length === 0) {
-            showError('Sin Programas', 'Este evento no tiene programas académicos asignados. Edita el evento para seleccionar "A quién va dirigido".');
+            showError('Sin Programas', 'Este evento no tiene programas académicos asignados.');
             return;
         }
 
         const programNames = evento.programas_dirigidos.map(p => p.descripcion).join(', ');
-        const confirmed = await showConfirm('Enviar Difusión', `¿Enviar correos promocionales a todos los estudiantes activos de los siguientes programas?\n\n${programNames}\n\nEsto puede tomar varios segundos.`);
+
+        // Confirmación estilizada con SweetAlert2
+        const confirmed = await showConfirm(
+            '📣 Enviar Difusión',
+            `¿Enviar correos promocionales a estudiantes de:\n\n${programNames}?`
+        );
         if (!confirmed) return;
 
         try {
             setSendingDiffusion(true);
-            const res = await axios.post(`http://localhost:8000/api/admin/eventos/${id}/difusion/`, {}, authConfig);
 
-            if (res.data.errores && res.data.errores.length > 0) {
-                showError('Difusión Parcial', `${res.data.message}\n\nEmails enviados: ${res.data.emails_enviados}/${res.data.total_estudiantes}\n\nErrores:\n${res.data.errores.slice(0, 5).join('\n')}`);
-            } else {
-                showSuccess('¡Difusión Enviada!', `Se enviaron ${res.data.emails_enviados} correos a estudiantes de ${res.data.programas.length} programa(s).`);
-            }
+            const res = await api.post(`/admin/eventos/${id}/difusion/`);
+            const enviados = res.data.emails_enviados || 0;
+
+            showSuccess(
+                '¡Difusión Completada!',
+                `Se enviaron ${enviados} correos de difusión exitosamente.`
+            );
+
         } catch (error) {
-            showError('Error de Difusión', 'Error al enviar emails: ' + (error.response?.data?.error || error.message));
+            showError('Error', error.response?.data?.error || 'Error al enviar la difusión.');
         } finally {
             setSendingDiffusion(false);
         }
     };
 
-    // --- CERTIFICATES ---
-
-    const handleGenerarCertificados = async (e) => {
-        e.preventDefault();
-        const confirmed = await showConfirm('Generar Certificados', 'Esto generará certificados para todos los asistentes que marcaron asistencia y los enviará por correo. ¿Continuar?');
-        if (!confirmed) return;
-
-        try {
-            setGeneratingCerts(true);
-            const formData = new FormData();
-            if (certTemplate) formData.append('plantilla', certTemplate);
-
-            const res = await axios.post(`http://localhost:8000/api/eventos/${id}/generar_certificados_masivo/`, formData, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
-            });
-
-            if (res.data.errors && res.data.errors.length > 0) {
-                showError('Proceso Finalizado con Errores', `${res.data.message}\n\nErrores:\n${res.data.errors.join('\n')}`);
-            } else {
-                showSuccess('¡Éxito!', res.data.message);
-                setShowCertModal(false);
-                setCertTemplate(null);
-            }
-        } catch (error) {
-            showError('Error', 'Error al generar certificados: ' + (error.response?.data?.error || error.message));
-        } finally {
-            setGeneratingCerts(false);
-        }
-    };
-
-    const handlePreviewCertificado = async () => {
-        try {
-            const formData = new FormData();
-            if (certTemplate) formData.append('plantilla', certTemplate);
-
-            const res = await axios.post(`http://localhost:8000/api/eventos/${id}/ver_previsualizacion_certificado/`, formData, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
-                responseType: 'blob'
-            });
-
-            const file = new Blob([res.data], { type: 'application/pdf' });
-            const fileURL = URL.createObjectURL(file);
-            window.open(fileURL, '_blank');
-        } catch (error) {
-            console.error(error);
-            showError('Error', 'No se pudo generar la vista previa. Asegúrate de haber subido una plantilla.');
-        }
-    };
-
-    // --- FILTERING & PAGINATION ---
+    // --- FILTRADO Y PAGINACIÓN ---
 
     const filteredInscritos = inscritos.filter(ins => {
         const term = searchTerm.toLowerCase();
         return (
-            ins.usuario.full_name.toLowerCase().includes(term) ||
-            ins.usuario.id.toLowerCase().includes(term) ||
+            ins.usuario.full_name?.toLowerCase().includes(term) ||
+            ins.usuario.id?.toString().includes(term) ||
             (ins.usuario.email && ins.usuario.email.toLowerCase().includes(term))
         );
     });
@@ -225,55 +195,121 @@ const EventDashboard = () => {
         if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
     };
 
-    // --- CHART DATA ---
+    // --- DATOS DE GRÁFICA ---
 
-    const chartData = stats && stats.asistencia_por_dependencia ? {
-        labels: Object.keys(stats.asistencia_por_dependencia),
-        datasets: [{
-            label: '# de Asistentes',
-            data: Object.values(stats.asistencia_por_dependencia),
-            backgroundColor: [
-                'rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)',
-                'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)',
-                '#4caf50', '#00bcd4', '#e91e63'
-            ],
-            borderWidth: 1,
-        }],
+    // --- DATOS DE GRÁFICA COMPARATIVA ---
+    const chartData = stats && stats.dependencias_comparativa ? {
+        labels: Object.keys(stats.dependencias_comparativa.inscritos || {}),
+        datasets: [
+            {
+                label: 'Inscritos',
+                data: Object.values(stats.dependencias_comparativa.inscritos || {}),
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1,
+            },
+            {
+                label: 'Asistentes (Entrada)',
+                data: Object.keys(stats.dependencias_comparativa.inscritos || {}).map(dep => stats.dependencias_comparativa.asistencia[dep] || 0),
+                backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1,
+            }
+        ],
     } : null;
 
-    if (loading) return <div className="loading">Cargando Dashboard del Evento...</div>;
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top',
+            },
+            title: {
+                display: true,
+                text: 'Comparativa: Inscritos vs Asistentes por Dependencia',
+            },
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    };
+
+    if (loading) return <div className="loading">Cargando Dashboard...</div>;
     if (!evento) return <div className="alert alert-error">Evento no encontrado</div>;
 
     return (
         <div className="event-dashboard">
-            <button onClick={() => navigate('/admin-dashboard/events')} className="btn btn-secondary mb-3">
-                ← Volver a Eventos
-            </button>
 
-            {/* EVENT HEADER */}
+
+
+            {/* 1. BOTÓN VOLVER (Restaurado FUERA del header) */}
+            <div style={{ marginBottom: '20px' }}>
+                <button 
+                    onClick={() => {
+                        if (user?.role === 'Administrador') navigate('/admin-dashboard/events');
+                        else if (user?.role === 'Coordinador') navigate('/coordinador-dashboard/events');
+                        else navigate('/staff-dashboard/events');
+                    }} 
+                    className="btn btn-secondary"
+                >
+                    ← Volver a Eventos
+                </button>
+            </div>
+
+            {/* EVENT HEADER CON IMAGEN CIRCULAR */}
             <div className="event-dashboard__header">
-                <h1 className="event-dashboard__title">{evento.titulo}</h1>
-                <p className="event-dashboard__info">
-                    📅 {new Date(evento.fecha).toLocaleString()} | 📍 {evento.lugar}
-                </p>
-                {evento.requiere_refrigerio && (
-                    <span className="event-dashboard__badge">
-                        🍿 {evento.cantidad_refrigerios} Refrigerios Disponibles
-                    </span>
-                )}
+                <div className="header-content-wrapper">
 
-                {evento.programas_dirigidos && evento.programas_dirigidos.length > 0 && (
-                    <div className="event-dashboard__programs">
-                        <strong className="event-dashboard__programs-label">🎓 Dirigido a:</strong>
-                        <div className="event-dashboard__programs-list">
-                            {evento.programas_dirigidos.map(prog => (
-                                <span key={prog.id} className="event-dashboard__program-tag">
-                                    {prog.descripcion}
-                                </span>
-                            ))}
-                        </div>
+                    {/* COLUMNA IZQUIERDA: INFORMACIÓN */}
+                    <div className="header-info-column">
+                        <h1 className="event-dashboard__title">{evento.titulo}</h1>
+                        <p className="event-dashboard__info">
+                            📅 {new Date(evento.fecha).toLocaleString()} | 📍 {evento.lugar_nombre || evento.lugar}
+                        </p>
+                        {evento.requiere_entregable && stats && (
+                            <span className={`event-dashboard__badge ${stats.entregables_disponibles_total === 0 ? 'badge-danger' : ''}`}>
+                                🎁 {stats.entregables_disponibles_total} Entregables Disponibles
+                            </span>
+                        )}
+
+                        {evento.programas_dirigidos && evento.programas_dirigidos.length > 0 && (
+                            <div className="event-dashboard__programs">
+                                <strong className="event-dashboard__programs-label">🎓 Dirigido a:</strong>
+                                <div className="event-dashboard__programs-list">
+                                    {evento.programas_dirigidos.map(prog => (
+                                        <span key={prog.id} className="event-dashboard__program-tag">
+                                            {prog.descripcion}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ✨ NUEVO: Indicador de Difusión Pendiente */}
+                        {evento.estado === 'PENDIENTE' && evento.enviar_difusion && (
+                            <div style={{ marginTop: '10px', display: 'inline-block', backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: '6px', fontSize: '0.85rem', border: '1px solid #c8e6c9' }}>
+                                <strong>📧 Difusión Programada:</strong> Al aprobar este evento, se enviarán automáticamente los correos de invitación.
+                            </div>
+                        )}
                     </div>
-                )}
+
+                    {/* COLUMNA DERECHA: FLYER REDONDO */}
+                    {/* COLUMNA DERECHA: FLYER REDONDO (Versión Base64) */}
+                    {evento.flyer_base64 && (
+                        <div className="header-image-column">
+                            <img
+                                /* Construimos la fuente de la imagen Base64 igual que en tu lista */
+                                src={`data:${evento.flyer_content_type || 'image/png'};base64,${evento.flyer_base64}`}
+                                alt={`Flyer de ${evento.titulo}`}
+                                className="event-flyer-circle"
+                                onError={(e) => e.target.style.display = 'none'}
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* KPI STATS ROW */}
@@ -296,42 +332,42 @@ const EventDashboard = () => {
                     </h3>
                     <p className="event-dashboard__kpi-label">% Asistencia</p>
                 </div>
-                {evento.requiere_refrigerio && (
+                {evento.requiere_entregable && (
                     <div className="event-dashboard__kpi-card">
                         <h3 className="event-dashboard__kpi-value event-dashboard__kpi-value--warning">
-                            {stats.refrigerios_entregados}
+                            {stats.entregables_entregados_total}
                         </h3>
-                        <p className="event-dashboard__kpi-label">Refrigerios Entregados</p>
+                        <p className="event-dashboard__kpi-label">Total Entregados</p>
                     </div>
                 )}
             </div>
 
-            {/* ACTION BUTTONS (4 columns) */}
+
+
+            {/* ACTION BUTTONS (Clean Grid - SIN CERTIFICADOS) */}
             <div className="event-dashboard__actions">
-                <button className="btn btn-primary event-dashboard__action-btn" onClick={handleGenerarQRs} disabled={generating}>
+                <button className="event-dashboard__action-btn" onClick={handleGenerarQRs} disabled={generating}>
                     {generating ? 'Generando...' : '🎟️ Generar QRs Faltantes'}
                 </button>
-                <button className="btn btn-success event-dashboard__action-btn" onClick={handleEnviarEmails} disabled={sending}>
+                <button className="event-dashboard__action-btn" onClick={handleEnviarEmails} disabled={sending}>
                     {sending ? 'Enviando...' : '📧 Enviar QRs por Email'}
                 </button>
-                <button className="btn event-dashboard__action-btn event-dashboard__action-btn--stats" onClick={() => setShowStats(true)}>
+                <button className="event-dashboard__action-btn" onClick={() => setShowStats(true)}>
                     📊 Estadísticas Avanzadas
-                </button>
-                <button className="btn event-dashboard__action-btn event-dashboard__action-btn--certs" onClick={() => setShowCertModal(true)}>
-                    🎓 Generar Certificados
                 </button>
 
                 {evento.asistencia_qr && (
-                    <button className="btn event-dashboard__action-btn event-dashboard__action-btn--scanner" onClick={() => navigate(`/admin-dashboard/event/${id}/scanner`)}>
+                    <button className="event-dashboard__action-btn" onClick={() => isStaff ? navigate(`/staff-dashboard/event/${id}/scanner`) : navigate(`/admin-dashboard/event/${id}/scanner`)}>
                         📸 Validar QRs (Escáner)
                     </button>
                 )}
-                <button className="btn btn-secondary event-dashboard__action-btn" onClick={handleExportarExcel}>
+
+                <button className="event-dashboard__action-btn" onClick={handleExportarExcel}>
                     📊 Exportar Lista Asistentes
                 </button>
 
                 {evento.programas_dirigidos && evento.programas_dirigidos.length > 0 && (
-                    <button className="btn event-dashboard__action-btn event-dashboard__action-btn--diffusion" onClick={handleEnviarDifusion} disabled={sendingDiffusion}>
+                    <button className="event-dashboard__action-btn" onClick={handleEnviarDifusion} disabled={sendingDiffusion}>
                         {sendingDiffusion ? '✉️ Enviando...' : '📣 Enviar Difusión'}
                     </button>
                 )}
@@ -410,13 +446,52 @@ const EventDashboard = () => {
                 </>
             ) : (
                 /* STATS VIEW */
+                /* STATS VIEW */
                 <div className="event-dashboard__stats-card">
                     <div className="event-dashboard__stats-header">
-                        <h3 className="event-dashboard__stats-title">📊 Estadísticas de Asistencia por Dependencia</h3>
+                        <h3 className="event-dashboard__stats-title">📊 Estadísticas Avanzadas</h3>
                         <button className="btn btn-secondary" onClick={() => setShowStats(false)}>
                             ⬅ Volver a Lista
                         </button>
                     </div>
+
+                    {/* DETALLE DE ENTREGABLES (MOVIDO AQUÍ) */}
+                    {evento.requiere_entregable && stats.entregables_detalle && Object.keys(stats.entregables_detalle).length > 0 && (
+                        <div className="event-dashboard__entregables-section" style={{ marginBottom: '30px', marginTop: '20px' }}>
+                            <h3 className="event-dashboard__section-title" style={{ fontSize: '1.2rem', marginBottom: '15px', color: '#555' }}>
+                                📦 Detalle de Entregables
+                            </h3>
+                            <div className="event-dashboard__entregables-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+                                {Object.entries(stats.entregables_detalle).map(([tipo, data]) => (
+                                    <div key={tipo} className="entregable-card" style={{
+                                        background: '#fff',
+                                        padding: '15px',
+                                        borderRadius: '8px',
+                                        boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                                        borderLeft: '4px solid #ff9800'
+                                    }}>
+                                        <h4 style={{ margin: '0 0 10px', fontSize: '1rem', color: '#333' }}>{tipo}</h4>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.9rem' }}>
+                                            <span style={{ color: '#666' }}>Entregados:</span>
+                                            <strong style={{ color: '#ff9800' }}>{data.entregados}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                            <span style={{ color: '#666' }}>Disponibles:</span>
+                                            <strong style={{ color: '#4caf50' }}>{data.disponibles}</strong>
+                                        </div>
+                                        <div style={{ marginTop: '8px', background: '#eee', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+                                            <div style={{
+                                                width: `${data.generados > 0 ? (data.entregados / data.generados) * 100 : 0}%`,
+                                                background: '#ff9800',
+                                                height: '100%'
+                                            }}></div>
+                                        </div>
+                                        <p style={{ textAlign: 'right', fontSize: '0.75rem', color: '#999', margin: '5px 0 0' }}>Total: {data.generados}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="event-dashboard__chart-toggles">
                         <button className={`btn ${chartType === 'pie' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setChartType('pie')}>
@@ -430,53 +505,13 @@ const EventDashboard = () => {
                     <div className="event-dashboard__chart-container">
                         {chartData ? (
                             chartType === 'pie' ? (
-                                <Pie data={chartData} options={{ maintainAspectRatio: false }} />
+                                <Pie data={chartData} options={chartOptions} />
                             ) : (
-                                <Bar data={chartData} options={{ maintainAspectRatio: false }} />
+                                <Bar data={chartData} options={chartOptions} />
                             )
                         ) : (
                             <p className="event-dashboard__no-data">No hay datos suficientes para generar gráficas.</p>
                         )}
-                    </div>
-                </div>
-            )}
-
-            {/* CERTIFICATES MODAL */}
-            {showCertModal && (
-                <div className="modal-overlay" onClick={() => !generatingCerts && setShowCertModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3>Generar Certificados de Asistencia</h3>
-                            {!generatingCerts && <button className="modal-close" onClick={() => setShowCertModal(false)}>✕</button>}
-                        </div>
-                        <form onSubmit={handleGenerarCertificados}>
-                            <div className="event-dashboard__modal-info">
-                                <p><strong>ℹ️ Instrucciones:</strong></p>
-                                <ul>
-                                    <li>Se generarán certificados <strong>solo para los asistentes marcados como "Asistió"</strong>.</li>
-                                    <li>Los certificados se enviarán automáticamente por correo.</li>
-                                    <li>Puedes subir una plantilla PDF personalizada o usar la anterior.</li>
-                                </ul>
-                            </div>
-
-                            <div className="form-group">
-                                <label>Plantilla PDF (Opcional si ya existe una)</label>
-                                <input type="file" accept=".pdf" onChange={(e) => setCertTemplate(e.target.files[0])} disabled={generatingCerts} />
-                                <small>Sube un PDF donde quieras que se sobreponga el Nombre y Documento.</small>
-                            </div>
-
-                            <div className="modal-footer">
-                                <button type="button" className="btn event-dashboard__preview-btn" onClick={() => handlePreviewCertificado()} disabled={generatingCerts}>
-                                    👁️ Vista Previa
-                                </button>
-                                <button type="button" className="btn btn-secondary" onClick={() => setShowCertModal(false)} disabled={generatingCerts}>
-                                    Cancelar
-                                </button>
-                                <button type="submit" className="btn btn-primary" disabled={generatingCerts}>
-                                    {generatingCerts ? 'Generando y Enviando...' : '🚀 Generar y Enviar'}
-                                </button>
-                            </div>
-                        </form>
                     </div>
                 </div>
             )}

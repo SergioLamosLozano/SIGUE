@@ -174,6 +174,25 @@ class Programa(models.Model):
         return self.descripcion
 
 
+class LugarEvento(models.Model):
+    """
+    Ubicaciones/Lugares donde se realizan los eventos.
+    Mapea a tabla existente 'lugares_evento' en la BD.
+    """
+    id = models.AutoField(primary_key=True)
+    descripcion = models.CharField(max_length=50, verbose_name="Descripción del Lugar")
+
+    class Meta:
+        managed = True
+        db_table = 'lugares_evento'
+        verbose_name = "Lugar de Evento"
+        verbose_name_plural = "Lugares de Evento"
+        ordering = ['descripcion']
+
+    def __str__(self):
+        return self.descripcion
+
+
 class EstudianteActivoUnivalle(models.Model):
     """
     Estudiantes activos de Univalle cargados desde Excel.
@@ -215,7 +234,14 @@ class Evento(models.Model):
     titulo = models.CharField(max_length=200, verbose_name="Título del Evento")
     descripcion = models.TextField(verbose_name="Descripción", blank=True)
     fecha = models.DateTimeField(verbose_name="Fecha y Hora de Inicio")
-    lugar = models.CharField(max_length=200, verbose_name="Lugar")
+    lugar = models.ForeignKey(
+        LugarEvento,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='eventos',
+        verbose_name="Lugar"
+    )
     
     # Usuario que creó el evento (Staff/Admin)
     creado_por = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='eventos_creados')
@@ -241,9 +267,9 @@ class Evento(models.Model):
         verbose_name='Tipo de contenido del flyer (MIME type)'
     )
     
-    # Configuración de refrigerios
-    requiere_refrigerio = models.BooleanField(default=False, verbose_name='¿Requiere Refrigerio?')
-    cantidad_refrigerios = models.PositiveIntegerField(default=0, verbose_name='Cantidad de Refrigerios (Total)')
+    # Configuración de entregables (Souvenirs, Refrigerios, etc.)
+    requiere_entregable = models.BooleanField(default=False, verbose_name='¿Requiere Entregable/Souvenir?')
+    cantidad_entregables = models.PositiveIntegerField(default=0, verbose_name='Cantidad de Entregables (Total)')
     
     # ¿Se controla asistencia mediante escaneo de QR en la entrada?
     asistencia_qr = models.BooleanField(default=False, verbose_name='¿Asistencia por QR?')
@@ -251,11 +277,17 @@ class Evento(models.Model):
     # Campos nuevos para gestión avanzada
     fecha_fin = models.DateTimeField(null=True, blank=True, verbose_name="Fecha Fin")
     
-    # JSON para configurar tipos de refrigerios personalizados (ej: ['Desayuno', 'Almuerzo'])
-    detalles_refrigerios = models.JSONField(default=dict, blank=True, verbose_name="Detalles de Refrigerios")
+    # JSON para configurar tipos de entregables personalizados (ej: ['Desayuno', 'Almuerzo', 'Souvenir'])
+    detalles_entregables = models.JSONField(default=dict, blank=True, verbose_name="Detalles de Entregables")
     
     # Plantilla PDF para generar certificados automáticos
-    plantilla_certificado = models.FileField(upload_to='plantillas_certificados/', blank=True, null=True, verbose_name='Plantilla de Certificado (PDF)')
+    plantilla_certificado = models.FileField(upload_to='plantillas_certificados/', blank=True, null=True, verbose_name='Plantilla de Certificado (Imagen/PDF)')
+    
+    # Configuración de Coordenadas (JSON) proveniente del CertificateDesigner
+    config_certificado = models.JSONField(default=dict, blank=True, null=True, verbose_name="Configuración del Certificado")
+    
+    # Track diffusion preference (sent upon admin approval)
+    enviar_difusion = models.BooleanField(default=False, verbose_name="Enviar Difusión Automática")
     
     # Workflow de Aprobación
     ESTADO_CHOICES = [
@@ -277,6 +309,24 @@ class Evento(models.Model):
 
     def __str__(self):
         return self.titulo
+
+class EventoStaff(models.Model):
+    """
+    Tabla intermedia que asigna privilegios temporales de Staff a un usuario para un evento específico.
+    El staff puede escanear QR y registrar asistencia en dicho evento.
+    """
+    evento = models.ForeignKey(Evento, on_delete=models.CASCADE, related_name='staff_asignados', verbose_name='Evento')
+    usuario = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='staff_eventos', verbose_name='Usuario Staff')
+    asignado_por = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='staff_asignaciones', verbose_name='Asignado Por')
+    fecha_asignacion = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de Asignación')
+
+    class Meta:
+        unique_together = ('evento', 'usuario')  # Un usuario no puede ser staff doble del mismo evento
+        verbose_name = 'Staff de Evento'
+        verbose_name_plural = 'Staff de Eventos'
+
+    def __str__(self):
+        return f'{self.usuario.full_name} - Staff de "{self.evento.titulo}"'
 
 class Inscripcion(models.Model):
     """
@@ -411,3 +461,29 @@ class CodigoQR(models.Model):
             
             return True
         return False
+
+
+class GeneratedCertificate(models.Model):
+    """
+    Certificado generado para un estudiante en un evento específico.
+    Se almacena como datos binarios (BLOB) en la base de datos para evitar uso de filesystem local.
+    """
+    usuario = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='certificados')
+    evento = models.ForeignKey(Evento, on_delete=models.CASCADE, related_name='certificados')
+    
+    # Almacenamiento binario del PDF
+    pdf_blob = models.BinaryField(verbose_name='Archivo PDF (BLOB)')
+    
+    filename = models.CharField(max_length=255, verbose_name='Nombre del Archivo')
+    content_type = models.CharField(max_length=100, default='application/pdf', verbose_name='Tipo de Contenido')
+    
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de Generación')
+
+    class Meta:
+        verbose_name = "Certificado Generado"
+        verbose_name_plural = "Certificados Generados"
+        ordering = ['-created_at']
+        unique_together = ('usuario', 'evento') # Un certificado por evento por usuario
+
+    def __str__(self):
+        return f"Certificado: {self.usuario.full_name} - {self.evento.titulo}"

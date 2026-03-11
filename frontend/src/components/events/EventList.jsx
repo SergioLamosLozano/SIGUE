@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+
 import { showSuccess, showError, showConfirm } from '../../services/alert';
+import UserCertificates from '../common/UserCertificates';
 import '../../styles/EventList.css';
 
 /**
@@ -17,32 +19,39 @@ const EventList = ({ canCreate = false }) => {
     const [misEventos, setMisEventos] = useState([]); // IDs de eventos donde el usuario está inscrito
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    // Estado para EDICIÓN
+    const [editingEventId, setEditingEventId] = useState(null);
+    const [existingFlyerUrl, setExistingFlyerUrl] = useState(null); // Para mostrar la imagen actual al editar
 
     // Hooks
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    // Estado para el formulario de Nuevo Evento
+    // Estado para el formulario de Nuevo/Editar Evento
     const [newEvent, setNewEvent] = useState({
         titulo: '',
         descripcion: '',
         fecha: '',
         fecha_fin: '',
         lugar: '',
-        requiere_refrigerio: false,
-        cantidad_refrigerios: 0,
-        refrigerios_items: [], // Array de objetos {id, name} para múltiples comidas
+        requiere_entregable: false,
+        cantidad_entregables: 0,
+        entregables_items: [], // Array de objetos {id, name} para múltiples tipos (Comida, Souvenir)
         asistencia_qr: false,
         programas_dirigidos_ids: [], // IDs de programas seleccionados
-        enviar_difusion: false // Enviar correos automáticamente al crear
+        enviar_difusion: false // Enviar correos automáticamente al crear/editar
     });
     const [flyerFile, setFlyerFile] = useState(null);
 
     // Estado para programas académicos (A quién va dirigido)
     const [programas, setProgramas] = useState([]);
+    // Estado para lugares/ubicaciones
+    const [lugares, setLugares] = useState([]);
 
     // Configuración de Auth para Axios
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     const authConfig = {
         headers: { Authorization: `Bearer ${token}` }
     };
@@ -77,9 +86,21 @@ const EventList = ({ canCreate = false }) => {
         }
     };
 
+    // Cargar ubicaciones para el selector
+    const fetchLugares = async () => {
+        try {
+            const res = await axios.get('http://localhost:8000/api/locations/', authConfig);
+            const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
+            setLugares(data);
+        } catch (error) {
+            console.error("Error fetching lugares", error);
+        }
+    };
+
     useEffect(() => {
         fetchEventos();
         fetchProgramas();
+        fetchLugares();
     }, []);
 
     // --- MANEJADORES DE ACCIÓN ---
@@ -88,42 +109,110 @@ const EventList = ({ canCreate = false }) => {
         setFlyerFile(e.target.files[0]);
     };
 
+    // Helper para formatear fechas al input datetime-local (YYYY-MM-DDTHH:MM)
+    const formatDateForInput = (isoDateString) => {
+        if (!isoDateString) return '';
+        const date = new Date(isoDateString);
+        // Ajustar a zona horaria local o mantener la del string si ya viene correcta
+        // Truco simple para input datetime-local: obtener YYYY-MM-DDTHH:MM
+        // Ojo: toISOString() da UTC. Para local, construimos manualmente o usamos librerías.
+        // Vamos a usar un ajuste simple de timezone offset.
+        const headerOffset = date.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(date.getTime() - headerOffset)).toISOString().slice(0, 16);
+        return localISOTime;
+    };
+
+    // Preparar el formulario para Editar
+    const handleEdit = (evento) => {
+        setEditingEventId(evento.id);
+
+        // Parsear entregables (suponiendo que viene como objeto o string JSON)
+        let entItems = [];
+        if (evento.detalles_entregables) {
+            try {
+                const parsed = typeof evento.detalles_entregables === 'string'
+                    ? JSON.parse(evento.detalles_entregables)
+                    : evento.detalles_entregables;
+                if (parsed && Array.isArray(parsed.items)) {
+                    entItems = parsed.items.map((name, idx) => ({ id: Date.now() + idx, name }));
+                }
+            } catch (e) { console.error("Error parseando entregables", e); }
+        }
+
+        setNewEvent({
+            titulo: evento.titulo,
+            descripcion: evento.descripcion || '',
+            fecha: formatDateForInput(evento.fecha),
+            fecha_fin: formatDateForInput(evento.fecha_fin),
+            lugar: evento.lugar,
+            requiere_entregable: evento.requiere_entregable || false,
+            cantidad_entregables: evento.cantidad_entregables || 0,
+            entregables_items: entItems,
+            asistencia_qr: evento.asistencia_qr || false,
+            // Asumimos que el backend devuelve la lista de IDs o objetos en 'programas_dirigidos'
+            // Si devuelve objetos, mapeamos a IDs.
+            programas_dirigidos_ids: Array.isArray(evento.programas_dirigidos)
+                ? evento.programas_dirigidos.map(p => typeof p === 'object' ? p.id : p)
+                : [],
+            enviar_difusion: false // Por defecto false al editar para no spamear, a menos que el usuario quiera
+        });
+
+        // Configurar imagen existente
+        if (evento.has_flyer && evento.flyer_base64) {
+            setExistingFlyerUrl(`data:${evento.flyer_content_type || 'image/png'};base64,${evento.flyer_base64}`);
+        } else {
+            setExistingFlyerUrl(null);
+        }
+        setFlyerFile(null); // Resetear archivo nuevo subido
+        setShowModal(true);
+    };
+
     /**
-     * Envía el formulario para crear un nuevo evento.
+     * Envía el formulario para crear o editar un evento.
      * Maneja FormData para permitir subida de imágenes (flyer).
      */
-    const handleCreate = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        if (submitting) return;
+        setSubmitting(true);
 
         const formData = new FormData();
         formData.append('titulo', newEvent.titulo);
         formData.append('descripcion', newEvent.descripcion);
         formData.append('fecha', newEvent.fecha);
         if (newEvent.fecha_fin) formData.append('fecha_fin', newEvent.fecha_fin);
+        else formData.append('fecha_fin', ''); // Enviar vacío si se limpia
+
         formData.append('lugar', newEvent.lugar);
-        formData.append('requiere_refrigerio', newEvent.requiere_refrigerio);
+        formData.append('requiere_entregable', newEvent.requiere_entregable);
 
-        // Lógica de refrigerios: Si hay items específicos, generar JSON de detalles
-        let totalQty = newEvent.cantidad_refrigerios;
-        if (newEvent.refrigerios_items.length > 0) {
-            const itemsNames = newEvent.refrigerios_items.map(i => i.name).filter(n => n.trim() !== '');
-            formData.append('detalles_refrigerios', JSON.stringify({ items: itemsNames }));
-            totalQty = 0; // Se calculará dinámicamente si es complejo, o se ignora en este modo
+        // Lógica de entregables
+        let totalQty = newEvent.cantidad_entregables;
+        if (newEvent.entregables_items.length > 0) {
+            const itemsNames = newEvent.entregables_items.map(i => i.name).filter(n => n.trim() !== '');
+            formData.append('detalles_entregables', JSON.stringify({ items: itemsNames }));
+            // totalQty se podría calcular o dejar manual, mantenemos manual o 0
         }
+        formData.append('cantidad_entregables', totalQty);
 
-        formData.append('cantidad_refrigerios', totalQty);
         formData.append('asistencia_qr', newEvent.asistencia_qr);
 
         // Añadir programas dirigidos
-        if (newEvent.programas_dirigidos_ids.length > 0) {
+        // OJO: En form-data arrays se envían repitiendo la clave
+        if (newEvent.programas_dirigidos_ids && newEvent.programas_dirigidos_ids.length > 0) {
             newEvent.programas_dirigidos_ids.forEach(id => {
                 formData.append('programas_dirigidos_ids', id);
             });
+        } else {
+            // Si queremos limpiar los programas al editar, necesitamos enviar algo que Django entienda como vacío
+            // o simplemente no enviar nada y que el backend maneje el set.
+            // Para 'ManyRelatedField' en DRF, enviar lista vacía a veces requiere truco, pero probemos omitir
+            // o enviar un valor vacío explicito si es necesario.
+        }
 
-            // Enviar difusión automática solo si hay programas seleccionados
-            if (newEvent.enviar_difusion) {
-                formData.append('enviar_difusion', 'true');
-            }
+        // Difusión
+        if (newEvent.enviar_difusion) {
+            formData.append('enviar_difusion', 'true');
         }
 
         if (flyerFile) {
@@ -131,19 +220,48 @@ const EventList = ({ canCreate = false }) => {
         }
 
         try {
-            await axios.post('http://localhost:8000/api/eventos/', formData, {
-                headers: {
-                    ...authConfig.headers,
-                    'Content-Type': 'multipart/form-data'
+            if (editingEventId) {
+                // MODO EDICIÓN
+                await axios.patch(`http://localhost:8000/api/eventos/${editingEventId}/`, formData, {
+                    headers: {
+                        ...authConfig.headers,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+                showSuccess('Evento actualizado exitosamente');
+            } else {
+                // MODO CREACIÓN
+                const res = await axios.post('http://localhost:8000/api/eventos/', formData, {
+                    headers: {
+                        ...authConfig.headers,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+
+                // Verificar si se activó la difusión
+                const isDiffusionActive = formData.get('enviar_difusion') === 'true' || formData.get('enviar_difusion') === true;
+
+                if (isDiffusionActive && res.data.emails_enviados) {
+                    // Evento Creado + Difusión Completada
+                    showSuccess(
+                        '¡Evento Creado y Difusión Completada!',
+                        `El evento se guardó correctamente. Se enviaron ${res.data.emails_enviados} correos de difusión.`
+                    );
+                } else {
+                    // Solo Crear
+                    showSuccess('¡Evento Creado!', 'El evento ha sido registrado exitosamente en el sistema.');
                 }
-            });
+            }
+
             setShowModal(false);
             resetForm();
             fetchEventos(); // Recargar lista
-            showSuccess('Evento creado exitosamente');
         } catch (error) {
             console.error(error);
-            showError('Error al crear evento: ' + (error.response?.data?.detail || error.message));
+            const action = editingEventId ? 'actualizar' : 'crear';
+            showError(`Error al ${action} evento: ` + (error.response?.data?.detail || error.message));
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -154,14 +272,16 @@ const EventList = ({ canCreate = false }) => {
             fecha: '',
             fecha_fin: '',
             lugar: '',
-            requiere_refrigerio: false,
-            cantidad_refrigerios: 0,
-            refrigerios_items: [],
+            requiere_entregable: false,
+            cantidad_entregables: 0,
+            entregables_items: [],
             asistencia_qr: false,
             programas_dirigidos_ids: [],
             enviar_difusion: false
         });
         setFlyerFile(null);
+        setEditingEventId(null);
+        setExistingFlyerUrl(null);
     };
 
     const handleJoin = async (eventoId) => {
@@ -211,11 +331,16 @@ const EventList = ({ canCreate = false }) => {
 
     const isAdmin = user?.role === 'Administrador';
     const isDocente = user?.role === 'Docente';
+    const isCoordinador = user?.role === 'Coordinador';
+    const isManagerRole = isAdmin || isCoordinador; // roles que gestionan eventos
 
     const filterEvents = () => {
         const now = new Date();
-        // Admin: Ve todo sin filtros de pestañas
+        // Admin: Ve todo sin filtros de pestaWas
         if (isAdmin) return eventos;
+
+        // Coordinador: solo VE sus propios eventos (sin tabs de inscripción)
+        if (isCoordinador) return eventos.filter(ev => ev.creado_por === user.id || ev.creado_por?.id === user.id || ev.creado_por === user.id);
 
         return eventos.filter(evento => {
             const eventStart = new Date(evento.fecha);
@@ -226,11 +351,6 @@ const EventList = ({ canCreate = false }) => {
 
             const isRegistered = misEventos.includes(evento.id);
             const isPast = eventEnd < now;
-
-            // Docentes pueden ver sus propios eventos en 'available' si son recientes, 
-            // o en 'history' si pasaron.
-            // PERO: Si el docente creó el evento, tal vez no quiera "inscribirse".
-            // Aun así, permitimos que se muestre.
 
             if (activeTab === 'available') {
                 return !isRegistered && !isPast;
@@ -252,9 +372,9 @@ const EventList = ({ canCreate = false }) => {
             {/* HEADER DE LA SECCIÓN */}
             <div className="page-header-card">
                 <div className="page-header-card__left">
-                    {isAdmin && (
+                    {isManagerRole && (
                         <button
-                            onClick={() => navigate('/admin-dashboard')}
+                            onClick={() => navigate(isCoordinador ? '/coordinador-dashboard' : '/admin-dashboard')}
                             className="btn btn-secondary"
                             title="Volver al Panel"
                         >
@@ -262,21 +382,21 @@ const EventList = ({ canCreate = false }) => {
                         </button>
                     )}
                     <h2 className="page-title">
-                        {isAdmin ? '📅 Gestión de Eventos' : '📅 Eventos y Actividades'}
+                        {isManagerRole ? '📅 Gestión de Eventos' : '📅 Eventos y Actividades'}
                     </h2>
                 </div>
 
                 <div className="page-header-card__right">
                     {canCreate && (
-                        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                        <button className="btn btn-primary" onClick={() => { resetForm(); setShowModal(true); }}>
                             ➕ Crear Nuevo Evento
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* TABS DE NAVEGACIÓN (DOCENTES Y ESTUDIANTES) */}
-            {!isAdmin && (
+            {/* TABS DE NAVEGACIÓN (SÓLO DOCENTES Y ESTUDIANTES - no Coordinador ni Admin) */}
+            {!isManagerRole && (
                 <div className="tabs-container">
                     <button
                         className={`tab-button ${activeTab === 'available' ? 'active' : ''}`}
@@ -296,11 +416,19 @@ const EventList = ({ canCreate = false }) => {
                     >
                         🕒 Historial
                     </button>
+                    <button
+                        className={`tab-button ${activeTab === 'certificates' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('certificates')}
+                    >
+                        📜 Mis Certificados
+                    </button>
                 </div>
             )}
 
-            {/* LISTA DE EVENTOS (GRID) */}
-            {displayedEvents.length === 0 ? (
+            {/* CONTENIDO DE LA PESTAÑA CERTIFICADOS */}
+            {activeTab === 'certificates' && !isAdmin ? (
+                <UserCertificates />
+            ) : displayedEvents.length === 0 ? (
                 <div className="empty-state">
                     <h3>No hay eventos en esta sección</h3>
                     <p>
@@ -315,13 +443,14 @@ const EventList = ({ canCreate = false }) => {
                     {displayedEvents.map(evento => (
                         <div
                             key={evento.id}
-                            className={`event-card ${canCreate ? 'clickable admin-view' : ''} ${evento.estado === 'PENDIENTE' ? 'pending-event' : ''}`}
+                            className={`event-card ${isManagerRole ? 'clickable admin-view' : ''} ${evento.estado === 'PENDIENTE' ? 'pending-event' : ''}`}
                             onClick={() => {
-                                if (canCreate) {
-                                    navigate(`/admin-dashboard/event/${evento.id}`);
-                                }
+                                if (isAdmin) navigate(`/admin-dashboard/event/${evento.id}`);
+                                else if (isCoordinador && evento.estado === 'APROBADO') navigate(`/coordinador-dashboard/event/${evento.id}`);
+                                // Coordinador with PENDIENTE event: no navigation (show badge instead)
                             }}
-                            style={evento.estado === 'PENDIENTE' ? { border: '2px dashed #f59e0b', opacity: 0.9 } : {}}
+                            style={evento.estado === 'PENDIENTE' ? { border: '2px dashed #f59e0b', opacity: 0.9 } : {}
+                            }
                         >
                             {/* IMAGEN DE FLYER SI EXISTE (almacenado como base64 en BD) */}
                             {evento.has_flyer && evento.flyer_base64 && (
@@ -340,7 +469,7 @@ const EventList = ({ canCreate = false }) => {
                                     📅 {new Date(evento.fecha).toLocaleString()}
                                 </div>
                                 <div className="event-info">
-                                    📍 {evento.lugar}
+                                    📍 {evento.lugar_nombre || evento.lugar}
                                 </div>
 
                                 <p className="event-description">{evento.descripcion}</p>
@@ -348,7 +477,7 @@ const EventList = ({ canCreate = false }) => {
                                 {/* Badges informativos */}
                                 <div className="event-badges">
                                     {evento.estado === 'PENDIENTE' && <span className="badge badge-warning">⏳ Pendiente</span>}
-                                    {evento.requiere_refrigerio && <span className="badge badge-refrigerio">🍿 Refrigerio</span>}
+                                    {evento.requiere_entregable && <span className="badge badge-refrigerio">🎁 Entregable</span>}
                                     {evento.asistencia_qr && <span className="badge badge-qr">📱 QR</span>}
                                 </div>
 
@@ -356,36 +485,43 @@ const EventList = ({ canCreate = false }) => {
                                 <div className="event-actions">
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
 
-                                        {/* --- GESTIÓN (Admin o Dueño) --- */}
-                                        {(isAdmin || (canCreate && evento.creado_por === user.id)) && (
-                                            <div style={{ display: 'flex', gap: '5px', width: '100%' }}>
+                                        {/* --- GESTIÓN (Admin o Coordinador dueño) --- */}
+                                        {(isAdmin || (isCoordinador && (evento.creado_por === user.id || evento.creado_por?.id === user.id))) && (
+                                            <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
                                                 {/* Aprobar (Solo Admin y Pendiente) */}
                                                 {isAdmin && evento.estado === 'PENDIENTE' && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleApprove(evento.id); }}
                                                         className="btn btn-success"
                                                         style={{ flex: 1 }}
+                                                        title="Aprobar Evento"
                                                     >
                                                         ✅ Aprobar
                                                     </button>
                                                 )}
 
-                                                {/* Eliminar (Admin o Dueño) */}
+                                                {/* Botón EDITAR */}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleEdit(evento); }}
+                                                    className="event-card-btn"
+                                                    title="Editar Evento"
+                                                >
+                                                    ✏️ Editar
+                                                </button>
+
+                                                {/* Botón ELIMINAR */}
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleDelete(evento.id); }}
-                                                    className="btn btn-danger"
-                                                    style={{ flex: 1 }}
+                                                    className="event-card-btn"
+                                                    title="Eliminar Evento"
                                                 >
-                                                    🗑 Eliminar
+                                                    🗑️ Eliminar
                                                 </button>
                                             </div>
                                         )}
 
-                                        {/* --- PARTICIPACIÓN (Todos excepto Admin, o incluso Admin si quisiera) --- */}
-                                        {/* Docentes y Estudiantes pueden unirse. 
-                                            Si el Docente es el creador, puede unirse también si desea (para generar su propio QR). 
-                                        */}
-                                        {!isAdmin && (
+                                        {/* --- PARTICIPACIÓN (Solo Estudiantes - ni Admin ni Coordinador) --- */}
+                                        {!isManagerRole && (
                                             <>
                                                 {activeTab === 'history' ? (
                                                     <div className="alert alert-secondary" style={{ marginBottom: 0, textAlign: 'center', padding: '0.5rem', background: '#f3f4f6', color: '#6b7280' }}>
@@ -402,6 +538,13 @@ const EventList = ({ canCreate = false }) => {
                                                 )}
                                             </>
                                         )}
+
+                                        {/* Coordinador: aviso de pendiente (no puede abrir dashboard de pendientes) */}
+                                        {isCoordinador && evento.estado === 'PENDIENTE' && (
+                                            <div style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#92400e', padding: '4px 10px', borderRadius: '6px', textAlign: 'center', marginTop: '4px', width: '100%' }}>
+                                                ⏳ Pendiente de aprobación — el dashboard se desbloquea cuando sea aprobado
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -410,147 +553,80 @@ const EventList = ({ canCreate = false }) => {
                 </div>
             )}
 
-            {/* MODAL DE CREACIÓN (SOLO ADMIN) - Diseño de dos columnas */}
+            {/* MODAL DE CREACIÓN / EDICIÓN */}
             {showModal && (
                 <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{
+                    <div className="modal-content modal-content-custom" onClick={e => e.stopPropagation()} style={{
                         maxWidth: '900px',
                         width: '95%',
                         maxHeight: '90vh',
                         overflow: 'auto',
                         padding: '0'
                     }}>
-                        <div style={{
-                            background: 'linear-gradient(135deg, #c41e3a 0%, #9a1830 100%)',
-                            color: 'white',
-                            padding: '20px 25px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }}>
-                            <h3 style={{ margin: 0, fontSize: '1.4rem', color: 'white' }}>✨ Crear Nuevo Evento</h3>
-                            <button onClick={() => setShowModal(false)} style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'white',
-                                fontSize: '1.5rem',
-                                cursor: 'pointer'
-                            }}>✕</button>
+                        <div className="event-modal-header">
+                            <h3 className="event-modal-title">
+                                {editingEventId ? '✏️ Editar Evento' : '✨ Crear Nuevo Evento'}
+                            </h3>
+                            <button className="event-modal-close" onClick={() => setShowModal(false)}>✕</button>
                         </div>
-                        <div style={{ padding: '25px' }}>
-                            <form onSubmit={handleCreate}>
+
+                        <div className="event-modal-body">
+                            <form onSubmit={handleSubmit}>
                                 {/* Layout de dos columnas */}
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                                    gap: '30px',
-                                    marginBottom: '25px'
-                                }}>
+                                <div className="event-form-grid">
                                     {/* COLUMNA IZQUIERDA */}
                                     <div>
-                                        <h4 style={{
-                                            margin: '0 0 20px',
-                                            color: '#c41e3a',
-                                            fontSize: '1.05rem',
-                                            borderBottom: '2px solid #c41e3a',
-                                            paddingBottom: '8px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px'
-                                        }}>
+                                        <h4 className="event-section-title">
                                             📋 Información del Evento
                                         </h4>
 
-                                        <div className="form-group" style={{ marginBottom: '16px' }}>
-                                            <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                        <div className="event-form-group">
+                                            <label className="event-label">
                                                 Título del Evento *
                                             </label>
                                             <input
+                                                className="event-input"
                                                 value={newEvent.titulo}
                                                 onChange={e => setNewEvent({ ...newEvent, titulo: e.target.value })}
                                                 required
                                                 placeholder="Ej: Día del Contador"
-                                                style={{
-                                                    padding: '12px 14px',
-                                                    fontSize: '0.95rem',
-                                                    borderRadius: '8px',
-                                                    border: '2px solid #e5e7eb',
-                                                    width: '100%',
-                                                    boxSizing: 'border-box',
-                                                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                                                    outline: 'none'
-                                                }}
-                                                onFocus={e => e.target.style.borderColor = '#c41e3a'}
-                                                onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                                             />
                                         </div>
 
-                                        <div className="form-group" style={{ marginBottom: '16px' }}>
-                                            <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                        <div className="event-form-group">
+                                            <label className="event-label">
                                                 Descripción
                                             </label>
                                             <textarea
+                                                className="event-textarea"
                                                 value={newEvent.descripcion}
                                                 onChange={e => setNewEvent({ ...newEvent, descripcion: e.target.value })}
                                                 placeholder="Describe los detalles del evento..."
-                                                style={{
-                                                    minHeight: '100px',
-                                                    padding: '12px 14px',
-                                                    fontSize: '0.95rem',
-                                                    borderRadius: '8px',
-                                                    border: '2px solid #e5e7eb',
-                                                    width: '100%',
-                                                    boxSizing: 'border-box',
-                                                    resize: 'vertical',
-                                                    outline: 'none'
-                                                }}
-                                                onFocus={e => e.target.style.borderColor = '#c41e3a'}
-                                                onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                                             />
                                         </div>
 
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                            <div className="form-group">
-                                                <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                        <div className="event-date-row">
+                                            <div className="event-form-group">
+                                                <label className="event-label">
                                                     📅 Fecha Inicio *
                                                 </label>
                                                 <input
+                                                    className="event-input"
                                                     type="datetime-local"
                                                     value={newEvent.fecha}
                                                     onChange={e => setNewEvent({ ...newEvent, fecha: e.target.value })}
                                                     required
-                                                    style={{
-                                                        padding: '10px 12px',
-                                                        fontSize: '0.9rem',
-                                                        borderRadius: '8px',
-                                                        border: '2px solid #e5e7eb',
-                                                        width: '100%',
-                                                        boxSizing: 'border-box',
-                                                        outline: 'none'
-                                                    }}
-                                                    onFocus={e => e.target.style.borderColor = '#c41e3a'}
-                                                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                                                 />
                                             </div>
-                                            <div className="form-group">
-                                                <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                            <div className="event-form-group">
+                                                <label className="event-label">
                                                     📅 Fecha Fin
                                                 </label>
                                                 <input
+                                                    className="event-input"
                                                     type="datetime-local"
                                                     value={newEvent.fecha_fin}
                                                     onChange={e => setNewEvent({ ...newEvent, fecha_fin: e.target.value })}
-                                                    style={{
-                                                        padding: '10px 12px',
-                                                        fontSize: '0.9rem',
-                                                        borderRadius: '8px',
-                                                        border: '2px solid #e5e7eb',
-                                                        width: '100%',
-                                                        boxSizing: 'border-box',
-                                                        outline: 'none'
-                                                    }}
-                                                    onFocus={e => e.target.style.borderColor = '#c41e3a'}
-                                                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
                                                 />
                                             </div>
                                         </div>
@@ -558,54 +634,34 @@ const EventList = ({ canCreate = false }) => {
 
                                     {/* COLUMNA DERECHA */}
                                     <div>
-                                        <h4 style={{
-                                            margin: '0 0 20px',
-                                            color: '#c41e3a',
-                                            fontSize: '1.05rem',
-                                            borderBottom: '2px solid #c41e3a',
-                                            paddingBottom: '8px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px'
-                                        }}>
+                                        <h4 className="event-section-title">
                                             📍 Ubicación y Difusión
                                         </h4>
 
-                                        <div className="form-group" style={{ marginBottom: '16px' }}>
-                                            <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                        <div className="event-form-group">
+                                            <label className="event-label">
                                                 Lugar del Evento *
                                             </label>
-                                            <input
+                                            <select
+                                                className="event-input"
                                                 value={newEvent.lugar}
                                                 onChange={e => setNewEvent({ ...newEvent, lugar: e.target.value })}
                                                 required
-                                                placeholder="Ej: Auditorio Principal"
-                                                style={{
-                                                    padding: '12px 14px',
-                                                    fontSize: '0.95rem',
-                                                    borderRadius: '8px',
-                                                    border: '2px solid #e5e7eb',
-                                                    width: '100%',
-                                                    boxSizing: 'border-box',
-                                                    outline: 'none'
-                                                }}
-                                                onFocus={e => e.target.style.borderColor = '#c41e3a'}
-                                                onBlur={e => e.target.style.borderColor = '#e5e7eb'}
-                                            />
+                                            >
+                                                <option value="">Seleccione una ubicación</option>
+                                                {lugares.map(lugar => (
+                                                    <option key={lugar.id} value={lugar.id}>
+                                                        {lugar.descripcion}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
 
-                                        <div className="form-group" style={{ marginBottom: '16px' }}>
-                                            <label style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '6px', display: 'block', color: '#374151' }}>
+                                        <div className="event-form-group">
+                                            <label className="event-label">
                                                 🖼️ Flyer / Imagen Promocional
                                             </label>
-                                            <div style={{
-                                                border: '2px dashed #c41e3a',
-                                                borderRadius: '10px',
-                                                padding: '18px',
-                                                textAlign: 'center',
-                                                background: '#fef2f2',
-                                                cursor: 'pointer'
-                                            }}>
+                                            <div className="event-flyer-box">
                                                 <input
                                                     type="file"
                                                     accept="image/*"
@@ -615,12 +671,22 @@ const EventList = ({ canCreate = false }) => {
                                                 />
                                                 <label htmlFor="flyer-upload" style={{ cursor: 'pointer', display: 'block' }}>
                                                     {flyerFile ? (
-                                                        <div style={{ color: '#2e7d32' }}>
+                                                        <div className="flyer-content-success">
                                                             <span style={{ fontSize: '1.5rem' }}>✅</span>
                                                             <p style={{ margin: '8px 0 0', fontWeight: '500', fontSize: '0.9rem' }}>{flyerFile.name}</p>
+                                                            <p style={{ fontSize: '0.8rem', color: '#666' }}>Nueva imagen lista para subir</p>
+                                                        </div>
+                                                    ) : existingFlyerUrl && editingEventId ? (
+                                                        <div className="flyer-content-existing" style={{ position: 'relative' }}>
+                                                            <img
+                                                                src={existingFlyerUrl}
+                                                                alt="Actual"
+                                                                style={{ maxWidth: '100%', maxHeight: '100px', borderRadius: '6px', marginBottom: '5px' }}
+                                                            />
+                                                            <p style={{ margin: '0', fontSize: '0.8rem', color: '#666' }}>Imagen Actual (Clic para cambiar)</p>
                                                         </div>
                                                     ) : (
-                                                        <div style={{ color: '#666' }}>
+                                                        <div className="flyer-content-placeholder">
                                                             <span style={{ fontSize: '1.5rem' }}>📤</span>
                                                             <p style={{ margin: '8px 0 0', fontSize: '0.9rem' }}>Clic para seleccionar imagen</p>
                                                         </div>
@@ -628,43 +694,22 @@ const EventList = ({ canCreate = false }) => {
                                                 </label>
                                             </div>
                                         </div>
-
                                     </div>
                                 </div>
                                 {/* Fin del grid de dos columnas */}
 
                                 {/* A quién va dirigido - Selección de Programas */}
                                 {programas.length > 0 && (
-                                    <div className="modal-section">
-                                        <h4 className="modal-section-title">¿A quién va dirigido?</h4>
+                                    <div className="event-modal-section">
+                                        <h4 className="event-section-title">¿A quién va dirigido?</h4>
                                         <p style={{ fontSize: '0.85rem', color: '#666', margin: '0 0 10px' }}>
                                             Selecciona los programas académicos a los que va dirigido este evento:
                                         </p>
-                                        <div style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                                            gap: '8px',
-                                            maxHeight: '200px',
-                                            overflowY: 'auto',
-                                            padding: '10px',
-                                            border: '1px solid #ddd',
-                                            borderRadius: '8px',
-                                            background: '#f9f9f9'
-                                        }}>
+                                        <div className="programas-grid">
                                             {programas.map(programa => (
                                                 <label
                                                     key={programa.id}
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '8px',
-                                                        cursor: 'pointer',
-                                                        padding: '6px 10px',
-                                                        borderRadius: '6px',
-                                                        background: newEvent.programas_dirigidos_ids.includes(programa.id) ? '#e3f2fd' : 'white',
-                                                        border: newEvent.programas_dirigidos_ids.includes(programa.id) ? '1px solid #2196f3' : '1px solid #ddd',
-                                                        transition: 'all 0.2s'
-                                                    }}
+                                                    className={`programa-item ${newEvent.programas_dirigidos_ids.includes(programa.id) ? 'selected' : ''}`}
                                                 >
                                                     <input
                                                         type="checkbox"
@@ -695,73 +740,96 @@ const EventList = ({ canCreate = false }) => {
                                                 </p>
 
                                                 {/* Checkbox para enviar difusión automática */}
-                                                <label style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '10px',
-                                                    cursor: 'pointer',
-                                                    marginTop: '15px',
-                                                    padding: '12px 15px',
-                                                    background: newEvent.enviar_difusion ? '#e8f5e9' : '#fff3e0',
-                                                    border: `1px solid ${newEvent.enviar_difusion ? '#4caf50' : '#ff9800'}`,
-                                                    borderRadius: '8px',
-                                                    transition: 'all 0.2s'
-                                                }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={newEvent.enviar_difusion}
-                                                        onChange={e => setNewEvent({
-                                                            ...newEvent,
-                                                            enviar_difusion: e.target.checked
-                                                        })}
-                                                        style={{ width: 'auto' }}
-                                                    />
-                                                    <div>
-                                                        <strong style={{ display: 'block', color: newEvent.enviar_difusion ? '#2e7d32' : '#e65100' }}>
-                                                            📧 {newEvent.enviar_difusion ? 'Se enviarán correos automáticamente' : 'Enviar correos de difusión al crear'}
-                                                        </strong>
-                                                        <span style={{ fontSize: '0.8rem', color: '#666' }}>
-                                                            {newEvent.enviar_difusion
-                                                                ? 'Los estudiantes de los programas seleccionados recibirán un email de invitación'
-                                                                : 'Marca esta opción para notificar a los estudiantes automáticamente'}
-                                                        </span>
-                                                    </div>
-                                                </label>
+                                                {!editingEventId && (
+                                                    <label className={`difusion-box ${newEvent.enviar_difusion ? 'active' : 'inactive'}`}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={newEvent.enviar_difusion}
+                                                            onChange={e => setNewEvent({
+                                                                ...newEvent,
+                                                                enviar_difusion: e.target.checked
+                                                            })}
+                                                            style={{ width: 'auto' }}
+                                                        />
+                                                        <div>
+                                                            <strong style={{ display: 'block', color: newEvent.enviar_difusion ? '#2e7d32' : '#e65100' }}>
+                                                                📧 {newEvent.enviar_difusion ? 'Se enviarán correos automáticamente' : 'Enviar correos de difusión'}
+                                                            </strong>
+                                                            {user?.role !== 'Administrador' && newEvent.enviar_difusion && (
+                                                                <small style={{display: 'block', color: '#666', marginTop: '4px'}}>
+                                                                    La difusión se enviará automáticamente una vez que el Administrador apruebe este evento.
+                                                                </small>
+                                                            )}
+                                                            <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                                                                {newEvent.enviar_difusion
+                                                                    ? 'Los estudiantes de los programas seleccionados recibirán un email de invitación'
+                                                                    : 'Marca esta opción para notificar a los estudiantes automáticamente'}
+                                                            </span>
+                                                        </div>
+                                                    </label>
+                                                )}
                                             </>
                                         )}
                                     </div>
                                 )}
 
                                 {/* Opciones Avanzadas (Refrigerio, QR) */}
-                                <div className="modal-section">
-                                    <h4 className="modal-section-title">Opciones Adicionales</h4>
+                                <div className="event-modal-section">
+                                    <h4 className="event-section-title">Opciones Adicionales</h4>
 
                                     <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
                                         <div style={{ flex: 1, minWidth: '300px' }}>
                                             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '10px' }}>
                                                 <input
                                                     type="checkbox"
-                                                    checked={newEvent.requiere_refrigerio}
-                                                    onChange={e => setNewEvent({ ...newEvent, requiere_refrigerio: e.target.checked })}
+                                                    checked={newEvent.requiere_entregable}
+                                                    onChange={e => setNewEvent({ ...newEvent, requiere_entregable: e.target.checked })}
                                                     style={{ width: 'auto' }}
                                                 />
-                                                <strong>Requiere Refrigerio</strong>
+                                                <strong>Requiere Entregables / Souvenirs</strong>
                                             </label>
 
-                                            {newEvent.requiere_refrigerio && (
+                                            {newEvent.requiere_entregable && (
                                                 <div className="refrigerio-list">
-                                                    <p style={{ margin: '0 0 10px', fontSize: '0.9rem' }}>Define qué comidas se darán:</p>
+                                                    <p style={{ margin: '0 0 10px', fontSize: '0.9rem' }}>Tipo de entregables (Selecciona o escribe):</p>
 
-                                                    {newEvent.refrigerios_items.map((item) => (
+                                                    {/* Botones de selección rápida */}
+                                                    <div style={{ display: 'flex', gap: '5px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                                                        {['Desayuno', 'Almuerzo', 'Cena', 'Refrigerio', 'Souvenir', 'Certificado Impreso'].map(tipo => (
+                                                            <button
+                                                                key={tipo}
+                                                                type="button"
+                                                                className="btn btn-sm btn-outline-secondary" // Puedes definir este estilo o usar inline
+                                                                style={{
+                                                                    fontSize: '0.8rem',
+                                                                    padding: '4px 8px',
+                                                                    borderRadius: '15px',
+                                                                    border: '1px solid #ccc',
+                                                                    background: '#f9f9f9'
+                                                                }}
+                                                                onClick={() => {
+                                                                    setNewEvent(prev => ({
+                                                                        ...prev,
+                                                                        entregables_items: [...prev.entregables_items, { id: Date.now(), name: tipo }]
+                                                                    }));
+                                                                }}
+                                                            >
+                                                                + {tipo}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+
+                                                    {newEvent.entregables_items.map((item) => (
                                                         <div key={item.id} className="refrigerio-item">
                                                             <input
-                                                                placeholder="Ej: Desayuno, Almuerzo"
+                                                                className="event-input"
+                                                                placeholder="Ej: Souvenir, Desayuno..."
                                                                 value={item.name}
                                                                 onChange={e => {
-                                                                    const newItems = newEvent.refrigerios_items.map(i =>
+                                                                    const newItems = newEvent.entregables_items.map(i =>
                                                                         i.id === item.id ? { ...i, name: e.target.value } : i
                                                                     );
-                                                                    setNewEvent({ ...newEvent, refrigerios_items: newItems });
+                                                                    setNewEvent({ ...newEvent, entregables_items: newItems });
                                                                 }}
                                                                 style={{ flex: 1 }}
                                                             />
@@ -772,8 +840,8 @@ const EventList = ({ canCreate = false }) => {
                                                                 onClick={(e) => {
                                                                     e.preventDefault();
                                                                     e.stopPropagation();
-                                                                    const newItems = newEvent.refrigerios_items.filter(i => i.id !== item.id);
-                                                                    setNewEvent(prev => ({ ...prev, refrigerios_items: newItems }));
+                                                                    const newItems = newEvent.entregables_items.filter(i => i.id !== item.id);
+                                                                    setNewEvent(prev => ({ ...prev, entregables_items: newItems }));
                                                                 }}
                                                             >
                                                                 ✕
@@ -789,11 +857,11 @@ const EventList = ({ canCreate = false }) => {
                                                             e.preventDefault();
                                                             setNewEvent(prev => ({
                                                                 ...prev,
-                                                                refrigerios_items: [...prev.refrigerios_items, { id: Date.now(), name: '' }]
+                                                                entregables_items: [...prev.entregables_items, { id: Date.now(), name: '' }]
                                                             }));
                                                         }}
                                                     >
-                                                        + Agregar Comida
+                                                        + Agregar Otro
                                                     </button>
                                                 </div>
                                             )}
@@ -813,14 +881,11 @@ const EventList = ({ canCreate = false }) => {
                                     </div>
                                 </div>
 
-                                <div className="modal-footer" style={{ textAlign: 'center', marginTop: '20px' }}>
+                                <div className="modal-actions">
                                     <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
-                                    <button type="submit" className="btn btn-primary" style={{
-                                        marginLeft: '15px',
-                                        background: 'linear-gradient(135deg, #c41e3a 0%, #9a1830 100%)',
-                                        padding: '12px 30px',
-                                        fontSize: '1.1rem'
-                                    }}>✨ Crear Evento</button>
+                                    <button type="submit" className="btn btn-primary" style={{ minWidth: '150px' }} disabled={submitting}>
+                                        {submitting ? '⏳ Procesando...' : (editingEventId ? '💾 Guardar Cambios' : '✨ Crear Evento')}
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -832,4 +897,3 @@ const EventList = ({ canCreate = false }) => {
 };
 
 export default EventList;
-

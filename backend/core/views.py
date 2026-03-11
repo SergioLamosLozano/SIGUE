@@ -1,3 +1,5 @@
+import zipfile
+import io
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework import generics
@@ -5,7 +7,8 @@ from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework import permissions
 from rest_framework import viewsets
 from .serializers import RegisterSerializer, UserSerializer, UserAdminSerializer
-from .models import CustomUser
+from .serializers import RegisterSerializer, UserSerializer, UserAdminSerializer, LugarEventoSerializer, ProgramaSerializer
+from .models import CustomUser, LugarEvento, Programa, Evento, EstudianteActivoUnivalle
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
@@ -82,15 +85,62 @@ class VerifyEmailView(APIView):
             return Response({'message': 'Cuenta verificada exitosamente'}, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Código incorrecto'}, status=status.HTTP_400_BAD_REQUEST)
+
+class ResendVerificationCodeView(APIView):
+    """
+    Endpoint para reenviar el código de verificación al correo de un usuario inactivo.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+
+        if not email:
+            return Response({'error': 'El correo electrónico es obligatorio'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user = CustomUser.objects.filter(email=email).first()
+        
+        if not user:
+             return Response({'error': 'No existe un usuario con este correo'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if user.is_active:
+             return Response({'error': 'Este usuario ya está activo', 'already_active': True}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generar nuevo código
+        import random
+        from django.core.mail import send_mail
+        from django.conf import settings
+        
+        code = str(random.randint(1000, 9999))
+        user.verification_code = code
+        user.save()
+
+        # Enviar correo
+        try:
+             print(f"DEBUG CODE for {user.email}: {code}") # Para facilitar pruebas locales
+             send_mail(
+                'Confirma tu cuenta - SIGUE',
+                f'Hola {user.full_name}, Tu nuevo código de verificación es: {code}',
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"Error enviando correo de reenvío: {e}")
+            return Response({'error': 'Ocurrió un error al enviar el correo'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({'message': 'Código reenviado exitosamente'}, status=status.HTTP_200_OK)
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from .models import Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle
+from .models import Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle, GeneratedCertificate, EventoStaff
 from .serializers import (
     AsistenteSerializer, CodigoQRSerializer, EventoSerializer, 
-    InscripcionSerializer, ProgramaSerializer, EstudianteActivoSerializer
+    InscripcionSerializer, ProgramaSerializer, EstudianteActivoSerializer,
+    EventoStaffSerializer, UserSearchSerializer
 )
+from .permissions import IsAdminOrCoordinatorOrEventStaff
 import pandas as pd
 from django.utils import timezone
 from .email_utils import enviar_codigos_qr_email
@@ -102,6 +152,7 @@ from django.db.models import Q
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.core.mail import send_mail
+import json # Import json for robust handling
 
 # -----------------------------------------------------------------------------
 # EVENTO VIEWSET
@@ -134,12 +185,12 @@ class EventoViewSet(viewsets.ModelViewSet):
         # Base query: Eventos aprobados
         queryset = Evento.objects.filter(estado='APROBADO')
 
-        if user.role == 'Coordinador':
-            # Coordinadores ven eventos aprobados y los suyos propios (pendientes)
+        if user.role in ['Coordinador', 'Docente']:
+            # Coordinadores y Docentes ven eventos aprobados + los suyos propios (pendientes/rechazados)
             mis_eventos = Evento.objects.filter(creado_por=user)
             queryset = queryset | mis_eventos
         
-        # Docentes y Estudiantes solo ven eventos aprobados (comportamiento default)
+        # Estudiantes solo ven eventos aprobados (comportamiento default)
         
         return queryset.distinct().order_by('-fecha')
     
@@ -147,36 +198,85 @@ class EventoViewSet(viewsets.ModelViewSet):
     import csv
     from django.http import HttpResponse
 
+    def create(self, request, *args, **kwargs):
+        """Override create to include emails_enviados in the response."""
+        self._emails_enviados = 0
+        response = super().create(request, *args, **kwargs)
+        if self._emails_enviados > 0:
+            response.data['emails_enviados'] = self._emails_enviados
+        return response
+
     def perform_create(self, serializer):
         """
         Asigna el creador.
         - Administrador: Crea eventos APROBADOS.
-        - Coordinador: Crea eventos PENDIENTES.
-        - Otros (Docente/Estudiante): No pueden crear eventos.
+        - Docente/Coordinador: Crea eventos PENDIENTES (requieren aprobación del admin).
+        - Estudiante: No puede crear eventos.
         
         Si enviar_difusion=true, envía correos a estudiantes de los programas seleccionados.
         """
         user = self.request.user
         
         from rest_framework.exceptions import PermissionDenied
-        if user.role in ['Estudiante', 'Docente']:
+        if user.role in ('Estudiante', 'Docente'):
             raise PermissionDenied("No tienes permisos para crear eventos.")
 
         estado = 'APROBADO' if user.role == 'Administrador' else 'PENDIENTE'
         evento = serializer.save(creado_por=user, estado=estado)
         
-        # Enviar difusión automática si se solicitó
-        enviar_difusion = self.request.data.get('enviar_difusion', 'false')
-        if enviar_difusion == 'true' and evento.programas_dirigidos.exists():
-            self._enviar_difusion_evento(evento)
+        # Obtener el valor de enviar_difusion (puede venir como string 'true' del FormData o como booleano)
+        req_difusion = self.request.data.get('enviar_difusion')
+        enviar_difusion_flag = req_difusion == 'true' or req_difusion is True
+
+        # Guardamos el evento. Si es PENDIENTE, enviar_difusion se guarda en BD usando el serializer (boolean true). 
+        # Si no venía en serializer por la forma del payload, explícitamente forzarlo si aplica.
+        evento = serializer.save(creado_por=user, estado=estado)
+        if enviar_difusion_flag and estado == 'PENDIENTE':
+             evento.enviar_difusion = True
+             evento.save()
+        
+        # Enviar difusión automática SOLO si se creó directamente como APROBADO y se solicitó
+        if enviar_difusion_flag and estado == 'APROBADO' and evento.programas_dirigidos.exists():
+            self._emails_enviados = self._enviar_difusion_evento(evento)
+
+    def update(self, request, *args, **kwargs):
+        """Override update to include emails_enviados in the response if triggered upon approval."""
+        self._emails_enviados = 0
+        response = super().update(request, *args, **kwargs)
+        if self._emails_enviados > 0:
+            response.data['emails_enviados'] = self._emails_enviados
+            response.data['message'] = f'Evento aprobado y {self._emails_enviados} correos de difusión enviados con éxito.'
+        return response
+
+    def perform_update(self, serializer):
+        """
+        Si un administrador aprueba un evento que estaba PENDIENTE y
+        el docente había marcado enviar_difusion = True, envía los correos.
+        """
+        # Obtain the old instance before saving
+        old_instance = self.get_object()
+        old_estado = old_instance.estado
+        
+        # Save the new changes
+        evento = serializer.save()
+        
+        # Check if the state changed from PENDIENTE to APROBADO
+        if old_estado == 'PENDIENTE' and evento.estado == 'APROBADO':
+            # Check if diffusion was requested
+            req_difusion = self.request.data.get('enviar_difusion', evento.enviar_difusion)
+            enviar_difusion_flag = req_difusion == 'true' or req_difusion is True
+            
+            if enviar_difusion_flag and evento.programas_dirigidos.exists():
+                self._emails_enviados = self._enviar_difusion_evento(evento)
+                # Ensure we don't send it again if edited later
+                evento.enviar_difusion = False
+                evento.save()
 
     def _enviar_difusion_evento(self, evento):
         """
         Envía correos de difusión a todos los estudiantes activos 
         de los programas asociados al evento con un diseño HTML profesional.
-        
-        El flyer se obtiene de la base de datos (campo flyer_data BLOB) y se adjunta
-        tanto inline (embebido en el HTML) como archivo adjunto.
+        Retorna el número de correos enviados exitosamente.
         """
         from django.core.mail import EmailMultiAlternatives
         from django.conf import settings
@@ -185,6 +285,8 @@ class EventoViewSet(viewsets.ModelViewSet):
         
         programa_ids = evento.programas_dirigidos.values_list('id', flat=True)
         estudiantes = EstudianteActivoUnivalle.objects.filter(programa_id__in=programa_ids)
+        
+        emails_enviados = 0
         
         # Preparar el flyer si existe
         has_flyer = evento.flyer_data is not None and len(evento.flyer_data) > 0
@@ -373,11 +475,14 @@ Universidad del Valle - SIGUE
                             evento.flyer_content_type or 'image/png'
                         )
                     
-                    email.send(fail_silently=True)
+                    email.send(fail_silently=False)
+                    emails_enviados += 1
                     
                 except Exception as e:
                     # Log error but continue
                     print(f"Error enviando email a {estudiante.correo}: {e}")
+        
+        return emails_enviados
 
     @action(detail=True, methods=['post'])
     def aprobar(self, request, pk=None):
@@ -386,9 +491,77 @@ Universidad del Valle - SIGUE
             return Response({'error': 'No tienes permisos para realizar esta acción'}, status=status.HTTP_403_FORBIDDEN)
         
         evento = self.get_object()
+        old_estado = evento.estado
+
         evento.estado = 'APROBADO'
         evento.save()
+
+        # Si cambió de pendiente a aprobado y se había solicitado difusión, hacerla efectiva
+        emails_enviados = 0
+        if old_estado == 'PENDIENTE' and evento.enviar_difusion and evento.programas_dirigidos.exists():
+            emails_enviados = self._enviar_difusion_evento(evento)
+            evento.enviar_difusion = False
+            evento.save()
+            return Response({'message': f'Evento aprobado exitosamente. Se enviaron {emails_enviados} correos de difusión.'})
+
         return Response({'message': 'Evento aprobado exitosamente'})
+
+    @action(detail=True, methods=['get'])
+    def staff(self, request, pk=None):
+        """
+        Lista el staff asignado a un evento.
+        Accesible por Administrador o el Coordinador creador del evento.
+        """
+        evento = self.get_object()
+        user = request.user
+        if user.role not in ('Administrador', 'Coordinador'):
+            return Response({'error': 'No tienes permisos para ver el staff'}, status=status.HTTP_403_FORBIDDEN)
+        staff_qs = EventoStaff.objects.filter(evento=evento).select_related('usuario', 'asignado_por')
+        serializer = EventoStaffSerializer(staff_qs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='staff/agregar')
+    def add_staff(self, request, pk=None):
+        """
+        Asigna un usuario como staff temporal de un evento.
+        Solo el Coordinador creador del evento o el Admin puede hacerlo.
+        Body: { "usuario_id": "<doc_id>" }
+        """
+        evento = self.get_object()
+        user = request.user
+        if user.role == 'Administrador' or (user.role == 'Coordinador' and evento.creado_por == user):
+            usuario_id = request.data.get('usuario_id')
+            if not usuario_id:
+                return Response({'error': 'usuario_id es requerido'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                target_user = CustomUser.objects.get(id=usuario_id)
+            except CustomUser.DoesNotExist:
+                return Response({'error': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+            if target_user.role not in ('Estudiante', 'Docente', 'Asistente'):
+                return Response({'error': 'Solo Estudiantes y Docentes pueden recibir permisos de staff'}, status=status.HTTP_400_BAD_REQUEST)
+            staff_entry, created = EventoStaff.objects.get_or_create(
+                evento=evento, usuario=target_user, defaults={'asignado_por': user}
+            )
+            if not created:
+                return Response({'message': 'El usuario ya es staff de este evento'}, status=status.HTTP_200_OK)
+            serializer = EventoStaffSerializer(staff_entry)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({'error': 'No tienes permisos para asignar staff a este evento'}, status=status.HTTP_403_FORBIDDEN)
+
+    @action(detail=True, methods=['delete'], url_path='staff/quitar/(?P<usuario_id>[^/.]+)')
+    def remove_staff(self, request, pk=None, usuario_id=None):
+        """
+        Quita los privilegios de staff de un usuario en un evento.
+        Solo el Coordinador creador del evento o el Admin puede hacerlo.
+        """
+        evento = self.get_object()
+        user = request.user
+        if user.role == 'Administrador' or (user.role == 'Coordinador' and evento.creado_por == user):
+            deleted, _ = EventoStaff.objects.filter(evento=evento, usuario__id=usuario_id).delete()
+            if deleted:
+                return Response({'message': 'Staff removido exitosamente'})
+            return Response({'error': 'El usuario no es staff de este evento'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'No tienes permisos'}, status=status.HTTP_403_FORBIDDEN)
 
     @action(detail=True, methods=['post'])
     def unirse(self, request, pk=None):
@@ -413,7 +586,19 @@ Universidad del Valle - SIGUE
         serializer = EventoSerializer(eventos, many=True, context={'request': request})
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='mis-eventos-staff')
+    def mis_eventos_staff(self, request):
+        """Devuelve los eventos activos donde el usuario autenticado es Staff."""
+        now = timezone.now()
+        eventos_staff = Evento.objects.filter(
+            staff_asignados__usuario=request.user
+        ).filter(
+            Q(fecha_fin__gte=now) | Q(fecha_fin__isnull=True)
+        ).distinct()
+        serializer = EventoSerializer(eventos_staff, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def inscritos(self, request, pk=None):
         """Devuelve la lista de personas inscritas a un evento específico."""
         evento = self.get_object()
@@ -421,7 +606,7 @@ Universidad del Valle - SIGUE
         serializer = InscripcionSerializer(inscripciones, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def estadisticas(self, request, pk=None):
         """
         Calcula estadísticas del evento:
@@ -441,36 +626,85 @@ Universidad del Valle - SIGUE
         # Asistencia Real = Códigos de tipo 'ENTRADA' que han sido usados
         asistentes_reales = qrs.filter(tipo_comida='ENTRADA', usado=True).count()
         
-        # Estadísticas de Refrigerios
-        refrigerios_entregados = qrs.filter(tipo_comida='REFRIGERIO', usado=True).count()
+        # Estadísticas de Entregables (Desglose por Tipo)
+        # Obtenemos todos los QRs que no son de entrada
+        qrs_entregables = qrs.exclude(tipo_comida='ENTRADA')
         
-        # Desglose por Dependencia (solo de los que asistieron)
+        entregables_stats = {}
+        
+        # Iterar sobre los tipos de entregables encontrados
+        # Usamos values('tipo_comida') para agrupar, pero como es SQLite/MySQL simple, 
+        # podemos iterar o hacer consultas agregadas. 
+        # Dado que no esperamos millones de registros, un loop simple sobre los tipos distintos funciona.
+        tipos_distintos = qrs_entregables.values_list('tipo_comida', flat=True).distinct()
+        
+        total_generados_global = 0
+        total_entregados_global = 0
+        
+        for tipo in tipos_distintos:
+            # Filtrar QRs de este tipo
+            qrs_tipo = qrs_entregables.filter(tipo_comida=tipo)
+            generados = qrs_tipo.count()
+            entregados = qrs_tipo.filter(usado=True).count()
+            disponibles = generados - entregados
+            
+            entregables_stats[tipo] = {
+                'generados': generados,
+                'entregados': entregados,
+                'disponibles': disponibles
+            }
+            
+            total_generados_global += generados
+            total_entregados_global += entregados
+
+        # Desglose por Dependencia (solo de los que asistieron - Entrada)
         asistencia_qrs = qrs.filter(tipo_comida='ENTRADA', usado=True).select_related('usuario', 'asistente')
         
-        dependencias_stats = {}
-        
+        dependencias_asistencia = {}
         for qr in asistencia_qrs:
             dep = "Sin Definir"
             if qr.usuario and qr.usuario.dependency:
                 dep = qr.usuario.dependency
             elif qr.asistente and qr.asistente.sede:
                 dep = qr.asistente.sede
-            
-            # Normalizar texto (Title Case)
             dep = dep.strip().title() if dep else "Sin Definir"
+            dependencias_asistencia[dep] = dependencias_asistencia.get(dep, 0) + 1
+
+        # Desglose por Dependencia (Inscritos)
+        inscripciones = evento.inscripciones.all().select_related('usuario')
+        dependencias_inscritos = {}
+        
+        for inscripcion in inscripciones:
+            dep = "Sin Definir"
+            if inscripcion.usuario and inscripcion.usuario.dependency:
+                dep = inscripcion.usuario.dependency
+            # Si hubiera asistentes legacy inscritos sin usuario (caso raro en modelo actual), manejar aquí
             
-            dependencias_stats[dep] = dependencias_stats.get(dep, 0) + 1
+            dep = dep.strip().title() if dep else "Sin Definir"
+            dependencias_inscritos[dep] = dependencias_inscritos.get(dep, 0) + 1
 
         return Response({
             'total_inscritos': total_inscritos,
             'asistentes_reales': asistentes_reales,
             'porcentaje_asistencia': (asistentes_reales / total_inscritos * 100) if total_inscritos > 0 else 0,
-            'refrigerios_entregados': refrigerios_entregados,
-            'total_refrigerios_disponibles': evento.cantidad_refrigerios,
-            'asistencia_por_dependencia': dependencias_stats
+            
+            # Globales
+            'entregables_generados_total': total_generados_global,
+            'entregables_entregados_total': total_entregados_global,
+            'entregables_disponibles_total': total_generados_global - total_entregados_global,
+            
+            # Detalle
+            'entregables_detalle': entregables_stats,
+            
+            'asistencia_por_dependencia': dependencias_asistencia, # Legacy key kept for compatibility if needed
+            'inscritos_por_dependencia': dependencias_inscritos,
+            'dependencias_comparativa': {
+                'inscritos': dependencias_inscritos,
+                'asistencia': dependencias_asistencia
+            }
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def generar_qrs_masivo(self, request, pk=None):
         """
         Genera códigos QR para todos los inscritos en el evento.
@@ -482,32 +716,54 @@ Universidad del Valle - SIGUE
         
         types = ['ENTRADA']
         
-        # Verificar configuración de refrigerios
-        detalles = evento.detalles_refrigerios or {}
-        items = detalles.get('items', [])
-        
-        # Si hay items personalizados, usarlos
-        if isinstance(items, list) and len(items) > 0:
-            types.extend([item for item in items if isinstance(item, str) and item.strip()])
-        # Si no, usar lógica simple por defecto
-        elif evento.requiere_refrigerio:
-            types.append('REFRIGERIO')
+        try:
+            # Verificar configuración de entregables
+            detalles = evento.detalles_entregables
             
-        for inscripcion in inscripciones:
-            user = inscripcion.usuario
-            for tipo in types:
-                _, created = CodigoQR.objects.get_or_create(
-                    evento=evento,
-                    usuario=user,
-                    tipo_comida=tipo,
-                    defaults={'asistente': None}
-                )
-                if created:
-                    generated_count += 1
-                    
-        return Response({'message': f'Se generaron {generated_count} códigos QR nuevos.'})
+            # Robust JSON parsing: if it's a string, try to parse it
+            if isinstance(detalles, str):
+                try:
+                    detalles = json.loads(detalles)
+                except json.JSONDecodeError:
+                    print(f"Error parsing detalles_entregables JSON for event {evento.id}: {detalles}")
+                    detalles = {}
+            
+            detalles = detalles or {}
+            items = detalles.get('items', [])
+            
+            # Si hay items personalizados, usarlos
+            if isinstance(items, list) and len(items) > 0:
+                types.extend([item for item in items if isinstance(item, str) and item.strip()])
+                
+            # Si no, usar lógica simple por defecto
+            elif evento.requiere_entregable:
+                types.append('ENTREGABLE')
+                
+            for inscripcion in inscripciones:
+                user = inscripcion.usuario
+                for tipo in types:
+                    try:
+                        _, created = CodigoQR.objects.get_or_create(
+                            evento=evento,
+                            usuario=user,
+                            tipo_comida=tipo,
+                            defaults={'asistente': None}
+                        )
+                        if created:
+                            generated_count += 1
+                    except Exception as e:
+                        print(f"Error generating QR for user {user.id} type {tipo}: {e}")
+            
+            return Response({'message': f'Se generaron {generated_count} códigos QR nuevos.'})
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({'error': f"Error interno generando QRs: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
 
-    @action(detail=True, methods=['post'])
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def enviar_emails_evento(self, request, pk=None):
         """
         Envía los códigos QR por correo electrónico a todos los inscritos que tengan email.
@@ -557,7 +813,7 @@ Universidad del Valle - SIGUE
             print(f"CRITICAL ERROR in enviar_emails_evento: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def generar_certificados_masivo(self, request, pk=None):
         """
         Genera y envía certificados PDF a los asistentes que marcaron asistencia (asistio=True).
@@ -630,7 +886,7 @@ Universidad del Valle - SIGUE
             'errors': errors
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def ver_previsualizacion_certificado(self, request, pk=None):
         """
         Genera una vista previa del certificado con datos dummy para verificar alineación.
@@ -666,42 +922,71 @@ Universidad del Valle - SIGUE
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def exportar_asistentes_excel(self, request, pk=None):
         """
-        Genera un archivo CSV descargable con la lista de asistentes confirmados.
+        Genera un archivo .xlsx descargable con la lista de inscritos al evento.
+        Usa openpyxl para compatibilidad con caracteres latinos.
         """
-        import csv
+        import openpyxl
         from django.http import HttpResponse
 
         evento = self.get_object()
-        
-        # Filtrar inscripciones con asistencia confirmada
+
+        # Filtrar solo inscripciones con asistencia CONFIRMADA
         inscripciones = evento.inscripciones.filter(asistio=True).select_related('usuario')
 
-        response = HttpResponse(
-            content_type='text/csv',
-            headers={'Content-Disposition': f'attachment; filename="asistentes_{evento.id}.csv"'},
-        )
-        
-        # BOM para que Excel reconozca UTF-8 automáticamente
-        response.write(u'\ufeff'.encode('utf8'))
+        # Crear libro de Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f"Asistentes"
 
-        writer = csv.writer(response)
-        writer.writerow(['Identificación', 'Nombre Completo', 'Email', 'Rol', 'Dependencia/Sede', 'Fecha Inscripción'])
+        # Encabezados
+        headers = ['Identificación', 'Nombre Completo', 'Email', 'Rol', 'Dependencia/Sede', 'Estado Asistencia', 'Fecha Inscripción']
+        ws.append(headers)
 
+        # Estilizar encabezados (negrita)
+        from openpyxl.styles import Font
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+
+        # Llenar filas
         for ins in inscripciones:
             user = ins.usuario
-            writer.writerow([
+            estado = "Asistió" if ins.asistio else "Pendiente"
+            fecha = ins.fecha_inscripcion.replace(tzinfo=None) if ins.fecha_inscripcion else ''
+
+            ws.append([
                 user.id,
                 user.full_name,
-                user.email,
+                user.email or 'N/A',
                 user.role,
                 user.dependency or 'N/A',
-                ins.fecha_inscripcion.strftime("%Y-%m-%d %H:%M")
+                estado,
+                fecha,
             ])
 
-        return Response(response)
+        # Autoajustar ancho de columnas
+        for column_cells in ws.columns:
+            max_length = 0
+            column_letter = column_cells[0].column_letter
+            for cell in column_cells:
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            ws.column_dimensions[column_letter].width = min(max_length + 2, 40)
+
+        # Preparar respuesta HTTP
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="Asistentes_Evento_{evento.id}.xlsx"'
+
+        # Guardar workbook directamente en la respuesta
+        wb.save(response)
+        return response
 
 # -----------------------------------------------------------------------------
 # ASISTENTE LEGACY VIEWSET
@@ -860,6 +1145,12 @@ class CodigoQRViewSet(viewsets.ModelViewSet):
             if not qr_obj:
                  return Response({'error': 'Código o Identificación no válida'}, status=status.HTTP_404_NOT_FOUND)
             
+            # Validar permisos sobre el evento (Admin, Creador o Staff del evento)
+            if qr_obj.evento:
+                perm = IsAdminOrCoordinatorOrEventStaff()
+                if not perm.has_object_permission(request, self, qr_obj.evento):
+                    return Response({'error': 'No tienes permisos para escanear QRs de este evento.'}, status=status.HTTP_403_FORBIDDEN)
+            
             # Construir información de respuesta normalizada
             attendant_info = {}
             if qr_obj.usuario:
@@ -889,7 +1180,7 @@ class CodigoQRViewSet(viewsets.ModelViewSet):
                     'status': 'error',
                     'message': f'Este código ya fue usado el {qr_obj.fecha_uso.strftime("%d/%m/%Y %H:%M") if qr_obj.fecha_uso else "previamente"}',
                     'asistente': attendant_info,
-                    'tipo': qr_obj.tipo_comida,
+                    'tipo_comida': qr_obj.tipo_comida,
                     'evento': qr_obj.evento.titulo if qr_obj.evento else None
                 }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -900,7 +1191,7 @@ class CodigoQRViewSet(viewsets.ModelViewSet):
                 'status': 'success',
                 'message': 'Código validado exitosamente',
                 'asistente': attendant_info,
-                'tipo': qr_obj.tipo_comida,
+                'tipo_comida': qr_obj.tipo_comida,
                 'fecha_uso': qr_obj.fecha_uso,
                 'evento': qr_obj.evento.titulo if qr_obj.evento else None
             })
@@ -913,6 +1204,27 @@ class CodigoQRViewSet(viewsets.ModelViewSet):
 # -----------------------------------------------------------------------------
 # PROGRAMA VIEWSET (Read-only for listing programs)
 # -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# PROGRAMA & LOCATION VIEWSETS
+# -----------------------------------------------------------------------------
+
+class LugarEventoViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de Lugares/Ubicaciones (CRUD).
+    """
+    queryset = LugarEvento.objects.all().order_by('descripcion')
+    serializer_class = LugarEventoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        """
+        Solo administradores pueden crear, editar o eliminar lugares.
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated(), IsAdminUser()]
+        return [permissions.IsAuthenticated()]
+
 
 class ProgramaViewSet(viewsets.ModelViewSet):
     """
@@ -1107,10 +1419,14 @@ class EnviarDifusionEventoView(APIView):
     """
     Envía correos de difusión/promoción de un evento a todos los estudiantes
     activos que pertenecen a los programas seleccionados en 'A quién va dirigido'.
+    Procesa de forma síncrona y retorna el conteo real de correos enviados.
     """
     permission_classes = [permissions.IsAuthenticated, IsAdminUser]
     
     def post(self, request, evento_id):
+        from email.mime.image import MIMEImage
+        from django.core.mail import EmailMultiAlternatives
+        
         try:
             evento = Evento.objects.get(id=evento_id)
         except Evento.DoesNotExist:
@@ -1136,17 +1452,233 @@ class EnviarDifusionEventoView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Preparar el flyer si existe (igual que en _enviar_difusion_evento)
+        # Preparar el flyer si existe
         has_flyer = evento.flyer_data is not None and len(evento.flyer_data) > 0
-        flyer_cid = 'flyer_evento'  # Content-ID para embeber en HTML
+        flyer_cid = 'flyer_evento'
+        
+        asunto = f"📢 Invitación: {evento.titulo}"
+        fecha_str = evento.fecha.strftime("%d/%m/%Y a las %H:%M")
         
         emails_enviados = 0
         errores = []
         
-        # Import necesario para imágenes embebidas
-        from email.mime.image import MIMEImage
+        for estudiante in estudiantes:
+            try:
+                # Texto plano como fallback
+                mensaje_texto = f"""
+Hola {estudiante.nombre},
+
+Te invitamos a participar en: {evento.titulo}
+
+📅 Fecha: {fecha_str}
+📍 Lugar: {evento.lugar}
+
+{evento.descripcion}
+
+Inscríbete en el sistema SIGUE para participar.
+
+Saludos,
+Universidad del Valle - SIGUE
+"""
+                
+                # Sección del flyer en HTML
+                if has_flyer:
+                    flyer_html = f'''
+        <tr>
+            <td style="padding: 0 30px 25px; text-align: center;">
+                <img src="cid:{flyer_cid}" alt="Flyer del evento" style="max-width: 100%; height: auto; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            </td>
+        </tr>
+'''
+                else:
+                    flyer_html = '''
+        <tr>
+            <td style="padding: 0 30px 25px; text-align: center;">
+                <div style="background: #f8f9fa; border: 2px dashed #ddd; border-radius: 12px; padding: 40px 20px; color: #888;">
+                    <p style="margin: 0; font-size: 14px;">🖼️ <em>[Próximamente más información del evento]</em></p>
+                </div>
+            </td>
+        </tr>
+'''
+                
+                # Template HTML profesional
+                mensaje_html = f'''
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
         
-        # Preparar contenido del email
+        <!-- Header con colores institucionales Universidad del Valle -->
+        <tr>
+            <td style="background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 50%, #c41e3a 100%); padding: 30px 20px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
+                    🎓 {evento.titulo}
+                </h1>
+                <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 14px;">
+                    Universidad del Valle - Sistema SIGUE
+                </p>
+            </td>
+        </tr>
+        
+        <!-- Saludo personalizado -->
+        <tr>
+            <td style="padding: 30px 30px 20px;">
+                <p style="color: #333; font-size: 16px; margin: 0; line-height: 1.6;">
+                    Hola <strong>{estudiante.nombre}</strong>,
+                </p>
+                <p style="color: #555; font-size: 15px; margin: 15px 0 0; line-height: 1.6;">
+                    ¡Te invitamos a ser parte de una experiencia única! No te pierdas este evento especial que hemos preparado para ti y toda la comunidad universitaria.
+                </p>
+            </td>
+        </tr>
+        
+        <!-- Detalles del evento -->
+        <tr>
+            <td style="padding: 0 30px;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(to right, #f8f9fa, #e9ecef); border-radius: 12px; border-left: 4px solid #1a5f2a;">
+                    <tr>
+                        <td style="padding: 25px;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td style="padding: 8px 0;">
+                                        <span style="font-size: 20px;">📅</span>
+                                        <span style="color: #333; font-size: 15px; margin-left: 10px;">
+                                            <strong>Fecha:</strong> {fecha_str}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 0;">
+                                        <span style="font-size: 20px;">📍</span>
+                                        <span style="color: #333; font-size: 15px; margin-left: 10px;">
+                                            <strong>Lugar:</strong> {evento.lugar}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        
+        <!-- Descripción del evento -->
+        <tr>
+            <td style="padding: 25px 30px;">
+                <p style="color: #444; font-size: 14px; line-height: 1.7; margin: 0; text-align: justify;">
+                    {evento.descripcion}
+                </p>
+            </td>
+        </tr>
+        
+        <!-- Flyer del evento (dinámico) -->
+        {flyer_html}
+        
+        <!-- Botón de inscripción -->
+        <tr>
+            <td style="padding: 0 30px 30px; text-align: center;">
+                <a href="https://ejecafetero.univalle.edu.co/" style="display: inline-block; background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 50px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 15px rgba(26, 95, 42, 0.3);">
+                    ✨ Inscríbete en SIGUE
+                </a>
+                <p style="color: #888; font-size: 12px; margin: 15px 0 0;">
+                    Haz clic para registrarte y asegurar tu participación
+                </p>
+            </td>
+        </tr>
+        
+        <!-- Línea separadora -->
+        <tr>
+            <td style="padding: 0 30px;">
+                <hr style="border: none; border-top: 1px solid #eee; margin: 0;">
+            </td>
+        </tr>
+        
+        <!-- Footer -->
+        <tr>
+            <td style="padding: 25px 30px; text-align: center; background: #f8f9fa;">
+                <p style="color: #666; font-size: 14px; margin: 0 0 10px;">
+                    ¡Te esperamos! 🎉
+                </p>
+                <p style="color: #1a5f2a; font-size: 16px; font-weight: 600; margin: 0;">
+                    Universidad del Valle - SIGUE
+                </p>
+                <p style="color: #999; font-size: 11px; margin: 15px 0 0;">
+                    Sistema Integrado de Gestión de Eventos
+                </p>
+            </td>
+        </tr>
+        
+    </table>
+</body>
+</html>
+'''
+                
+                # Crear email con alternativas (texto plano + HTML)
+                email = EmailMultiAlternatives(
+                    subject=asunto,
+                    body=mensaje_texto.strip(),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[estudiante.correo]
+                )
+                email.attach_alternative(mensaje_html, "text/html")
+                email.mixed_subtype = 'related'
+                
+                # Adjuntar el flyer embebido (inline) si existe
+                if has_flyer:
+                    mime_image = MIMEImage(bytes(evento.flyer_data))
+                    mime_image.add_header('Content-ID', f'<{flyer_cid}>')
+                    mime_image.add_header('Content-Disposition', 'inline', filename=evento.flyer_filename or 'flyer.png')
+                    email.attach(mime_image)
+                    
+                    email.attach(
+                        evento.flyer_filename or 'flyer.png',
+                        bytes(evento.flyer_data),
+                        evento.flyer_content_type or 'image/png'
+                    )
+                
+                email.send(fail_silently=False)
+                emails_enviados += 1
+                
+            except Exception as e:
+                errores.append(f"{estudiante.correo}: {str(e)}")
+        
+        return Response({
+            'message': 'Difusión completada',
+            'emails_enviados': emails_enviados,
+            'total_estudiantes': estudiantes.count(),
+            'programas': [p.descripcion for p in programas],
+            'errores': errores[:10]
+        })
+
+
+def _worker_send_difusion(evento_id, admin_email):
+    """Worker que ejecuta el envío masivo de difusión en un hilo separado."""
+    from email.mime.image import MIMEImage
+    from django.core.mail import EmailMultiAlternatives
+    from django.core.mail import send_mail as django_send_mail
+
+    emails_enviados = 0
+    errores = []
+    evento_titulo = "Evento"
+
+    try:
+        evento = Evento.objects.get(id=evento_id)
+        evento_titulo = evento.titulo
+        programas = evento.programas_dirigidos.all()
+        
+        estudiantes = EstudianteActivoUnivalle.objects.filter(
+            programa__in=programas,
+            correo__isnull=False
+        ).exclude(correo='')
+        
+        # Preparar el flyer si existe
+        has_flyer = evento.flyer_data is not None and len(evento.flyer_data) > 0
+        flyer_cid = 'flyer_evento'
+        
         asunto = f"📢 Invitación: {evento.titulo}"
         fecha_str = evento.fecha.strftime("%d/%m/%Y a las %H:%M")
         
@@ -1336,11 +1868,445 @@ Universidad del Valle - SIGUE
                 
             except Exception as e:
                 errores.append(f"{estudiante.correo}: {str(e)}")
+
+    except Exception as e:
+        print(f"Error crítico en hilo de difusión: {e}")
+        errores.append(f"Error crítico: {str(e)}")
+
+    # Enviar reporte al admin
+    if admin_email:
+        try:
+            errores_str = "\n".join(errores[:10]) if errores else "Ninguno"
+            django_send_mail(
+                f'✅ Reporte de Difusión - {evento_titulo}',
+                f'El envío masivo de difusión ha finalizado.\n\n'
+                f'📊 Resumen:\n'
+                f'  • Correos enviados: {emails_enviados}\n'
+                f'  • Errores: {len(errores)}\n\n'
+                f'Errores:\n{errores_str}\n\n'
+                f'— Sistema SIGUE',
+                settings.DEFAULT_FROM_EMAIL,
+                [admin_email],
+                fail_silently=True
+            )
+        except Exception as e:
+            print(f"Error enviando reporte al admin: {e}")
+
+    print(f"[HILO DIFUSIÓN] Finalizado — Enviados: {emails_enviados}, Errores: {len(errores)}")
+
+# -----------------------------------------------------------------------------
+# CERTIFICADOS VIEW
+# -----------------------------------------------------------------------------
+
+class UploadCertificateTemplateView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        import json
+        print("Datos recibidos:", request.data) # Debug
         
+        event_id = request.data.get('event')
+        file_obj = request.data.get('image')
+        # Frontend envía 'config_data' como string JSON
+        config_data_str = request.data.get('config_data')
+
+        if not event_id or not file_obj:
+            return Response({"error": "Faltan datos (evento o imagen)"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # LÓGICA DE GUARDADO:
+            # 1. Buscar el evento
+            evento = Evento.objects.get(id=event_id)
+            
+            # 2. Actualizar la plantilla en el evento
+            evento.plantilla_certificado = file_obj
+            
+            # 3. Guardar la configuración JSON si existe
+            if config_data_str:
+                try:
+                    evento.config_certificado = json.loads(config_data_str)
+                except json.JSONDecodeError:
+                    print("Error decodificando JSON de configuración")
+                    # No fallar del todo, pero loguear
+            
+            evento.save()
+            
+            return Response({"message": "Plantilla y configuración guardadas exitosamente", "id": evento.id}, status=status.HTTP_201_CREATED)
+            
+        except Evento.DoesNotExist:
+             return Response({"error": "Evento no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error subiendo plantilla: {e}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class GenerateBulkCertificatesView(APIView):
+    """
+    Genera certificados masivos para todos los asistentes (asistio=True) de un evento.
+    Usa la plantilla (Imagen) base y las coordenadas JSON guardadas en el evento.
+    Guarda los PDFs generados como BLOBs en la BD.
+    """
+    def post(self, request, *args, **kwargs):
+        import io
+        import json
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.utils import ImageReader
+        from django.core.files.base import ContentFile
+
+        event_id = request.data.get('event_id')
+        if not event_id:
+            return Response({"error": "Falta event_id"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            evento = Evento.objects.get(id=event_id)
+            if not evento.plantilla_certificado:
+                return Response({"error": "El evento no tiene plantilla configurada"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # BLINDAJE CONTRA CONFIGURACIÓN VACÍA
+            if not evento.config_certificado:
+                return Response({
+                    "error": "La plantilla existe pero NO TIENE CONFIGURACIÓN (Coordenadas). "
+                             "Por favor vuelve al Diseñador y dale 'Guardar' de nuevo para actualizarla."
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Obtener inscritos confirmados
+            inscripciones = Inscripcion.objects.filter(evento=evento, asistio=True).select_related('usuario')
+            if not inscripciones.exists():
+                return Response({"message": "No hay asistentes confirmados para este evento."}, status=status.HTTP_200_OK)
+
+            generated_count = 0
+            
+            # Obtener configuración (manejo robusto de JSON/Lista)
+            raw_config = evento.config_certificado or []
+            
+            # Normalizar a lista de campos
+            if isinstance(raw_config, str):
+                try:
+                    raw_config = json.loads(raw_config)
+                except:
+                    raw_config = []
+            
+            fields_config = []
+            if isinstance(raw_config, list):
+                fields_config = raw_config
+            elif isinstance(raw_config, dict):
+                # Si viene como objeto, buscamos 'fields' o intentamos convertir
+                fields_config = raw_config.get('fields', [])
+                if not fields_config and raw_config:
+                    # Fallback por si acaso es formato dict antiguo
+                    fields_config = [v for k, v in raw_config.items()]
+
+            # Cargar la imagen plantilla en memoria una sola vez
+            try:
+                plantilla_path = evento.plantilla_certificado.path # FileSystem path
+                bg_image = ImageReader(plantilla_path) 
+                img_w, img_h = bg_image.getSize()
+            except Exception as e:
+                return Response({"error": f"Error leyendo plantilla de imagen: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            for ins in inscripciones:
+                user = ins.usuario
+                
+                # Crear Buffer PDF
+                buffer = io.BytesIO()
+                c = canvas.Canvas(buffer, pagesize=(img_w, img_h))
+                
+                # 1. Dibujar Plantilla de Fondo
+                c.drawImage(bg_image, 0, 0, width=img_w, height=img_h)
+                
+                # 2. Dibujar Textos según Configuración
+                for field in fields_config:
+                    try:
+                        f_id = field.get('id', '')
+                        f_type = field.get('type', 'text')
+                        
+                        # --- LÓGICA DE INYECCIÓN DE DATOS REALES ---
+                        # 1. Definir texto por defecto (Placeholder o estático)
+                        default_text = str(field.get('text', ''))
+                        text_to_draw = default_text
+                        
+                        normalized_id = str(f_id).lower()
+                        normalized_text = default_text.lower()
+
+                        # 2. Reemplazo Dinámico (Prioridad Alta)
+                        # Buscamos coincidencias tanto en el ID como en el contenido del texto placeholder
+                        keys_nombre = ['nombre', 'name', 'student', 'estudiante']
+                        keys_id = ['cedula', 'id', 'documento', 'cc', 'identificacion']
+
+                        if any(x in normalized_id for x in keys_nombre) or any(k in normalized_text for k in keys_nombre):
+                            text_to_draw = user.full_name.upper()
+                        
+                        elif any(x in normalized_id for x in keys_id) or any(k in normalized_text for k in keys_id):
+                            text_to_draw = str(user.id)
+                        
+                        # Si no hay texto y no es imagen, saltar
+                        if not text_to_draw and f_type == 'text':
+                            continue
+
+                        # --- Coordenadas y Estilos (CORRECCIÓN VISUAL) ---
+                        # React envía porcentajes (0-100)
+                        x_pct = float(field.get('x', 0))
+                        y_pct = float(field.get('y', 0))
+                        
+                        if f_type == 'text':
+                            font_size = int(field.get('fontSize', 12))
+                            font_family = field.get('fontFamily', 'Helvetica')
+                            
+                            # Mapping fuentes
+                            rl_font = 'Helvetica-Bold'
+                            if 'Times' in font_family: rl_font = 'Times-Roman'
+                            elif 'Courier' in font_family: rl_font = 'Courier'
+                            
+                            c.setFont(rl_font, font_size)
+                            
+                            # Conversión a Puntos (Points) con Corrección de Baseline
+                            # X: Simple regla de tres
+                            x_pos = img_w * (x_pct / 100.0)
+                            
+                            # Y: Invertido (0 abajo) - Ajuste PRO (FontSize * 1.15)
+                            # Esto baja el texto para que no quede "flotando"
+                            y_pos = img_h - (img_h * (y_pct / 100.0)) - (font_size * 1.15)
+
+                            c.drawString(x_pos, y_pos, str(text_to_draw))
+                            
+                        # TODO: Lógica futura para imágenes (firmas) si f_type == 'image'
+                    
+                    except Exception as field_err:
+                        print(f"Error pintando campo {field}: {field_err}")
+                        continue
+                
+                c.showPage()
+                c.save()
+                
+                # 3. Guardar en Base de Datos (BLOB)
+                pdf_bytes = buffer.getvalue()
+                filename = f"Certificado_{user.id}_{evento.id}.pdf"
+                
+                # Update or Create
+                GeneratedCertificate.objects.update_or_create(
+                    usuario=user,
+                    evento=evento,
+                    defaults={
+                        'pdf_blob': pdf_bytes,
+                        'filename': filename,
+                        'content_type': 'application/pdf',
+                        'created_at': timezone.now()
+                    }
+                )
+                generated_count += 1
+                buffer.close()
+
+            # --- CORRECCIÓN CRÍTICA: RETORNO SEGURO ---
+            return Response({
+                "message": f"Proceso finalizado. {generated_count} certificados generados.",
+                "generated_count": generated_count,
+                "status": "success"
+            }, status=status.HTTP_200_OK)
+
+        except Evento.DoesNotExist:
+            return Response({"error": "Evento no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error generando certificados: {e}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class SendCertificatesBulkView(APIView):
+    """
+    Envía los certificados PDF almacenados en la BD (BLOB) por correo a los estudiantes.
+    Usa threading para no bloquear el frontend.
+    Al finalizar, envía un reporte al admin que inició la acción.
+    """
+    def post(self, request, *args, **kwargs):
+        event_id = request.data.get('event_id')
+        if not event_id:
+            return Response({"error": "Falta event_id"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Validar que existan certificados ANTES de lanzar el hilo
+        certificates = GeneratedCertificate.objects.filter(evento_id=event_id)
+        if not certificates.exists():
+            return Response({"error": "No hay certificados generados para este evento. Genérelos primero."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Email del admin que solicitó la acción (para el reporte)
+        admin_email = request.user.email if request.user and request.user.email else None
+
+        # Lanzar hilo en segundo plano
+        import threading
+        hilo = threading.Thread(
+            target=_worker_send_certificates,
+            args=(event_id, admin_email),
+            daemon=True
+        )
+        hilo.start()
+
         return Response({
-            'message': 'Difusión completada',
-            'emails_enviados': emails_enviados,
-            'total_estudiantes': estudiantes.count(),
-            'programas': [p.descripcion for p in programas],
-            'errores': errores[:10]  # Solo primeros 10 errores
-        })
+            "message": "El envío de certificados se está procesando en segundo plano. Recibirás un correo al finalizar.",
+            "status": "background_processing"
+        }, status=status.HTTP_200_OK)
+
+
+def _worker_send_certificates(event_id, admin_email):
+    """Worker que ejecuta el envío masivo de certificados en un hilo separado."""
+    from django.core.mail import EmailMessage as DjangoEmailMessage
+    from django.core.mail import send_mail as django_send_mail
+
+    sent_count = 0
+    error_count = 0
+    errors = []
+    evento_titulo = "Evento"
+
+    try:
+        certificates = GeneratedCertificate.objects.filter(evento_id=event_id).select_related('usuario', 'evento')
+
+        for cert in certificates:
+            try:
+                user = cert.usuario
+                evento_titulo = cert.evento.titulo
+                if not user.email:
+                    continue
+
+                subject = f"🎓 Certificado de Asistencia: {cert.evento.titulo}"
+                body = f"""
+Hola {user.full_name},
+
+Agradecemos sinceramente tu participación en el evento "{cert.evento.titulo}".
+
+Adjunto a este correo encontrarás tu certificado oficial de asistencia en formato PDF.
+
+Esperamos verte en nuestros próximos eventos.
+
+Atentamente,
+Universidad del Valle - Sistema SIGUE
+"""
+                email = DjangoEmailMessage(
+                    subject=subject,
+                    body=body.strip(),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[user.email],
+                )
+
+                if cert.pdf_blob:
+                    email.attach(cert.filename, cert.pdf_blob, 'application/pdf')
+                    email.send(fail_silently=False)
+                    sent_count += 1
+                else:
+                    raise Exception("El certificado no tiene contenido binario (PDF vacío).")
+
+            except Exception as e:
+                error_count += 1
+                user_email_str = getattr(user, 'email', 'desconocido') if 'user' in dir() else 'desconocido'
+                print(f"Error enviando certificado a {user_email_str}: {str(e)}")
+                errors.append(f"{user_email_str}: {str(e)}")
+
+    except Exception as e:
+        print(f"Error crítico en hilo de certificados: {e}")
+        errors.append(f"Error crítico: {str(e)}")
+
+    # Enviar reporte al admin
+    if admin_email:
+        try:
+            errores_str = "\n".join(errors[:10]) if errors else "Ninguno"
+            django_send_mail(
+                f'✅ Reporte de Envío de Certificados - {evento_titulo}',
+                f'El envío masivo de certificados ha finalizado.\n\n'
+                f'📊 Resumen:\n'
+                f'  • Enviados exitosamente: {sent_count}\n'
+                f'  • Fallidos: {error_count}\n\n'
+                f'Errores:\n{errores_str}\n\n'
+                f'— Sistema SIGUE',
+                settings.DEFAULT_FROM_EMAIL,
+                [admin_email],
+                fail_silently=True
+            )
+        except Exception as e:
+            print(f"Error enviando reporte al admin: {e}")
+
+    print(f"[HILO CERTIFICADOS] Finalizado — Enviados: {sent_count}, Fallidos: {error_count}")
+
+
+class CertificateViewSet(viewsets.ModelViewSet):
+    queryset = GeneratedCertificate.objects.all().order_by('-created_at')
+    from .serializers import GeneratedCertificateSerializer
+    serializer_class = GeneratedCertificateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = GeneratedCertificate.objects.all().order_by('-created_at')
+        
+        # Filter by Event
+        event_id = self.request.query_params.get('event_id')
+        if event_id:
+            queryset = queryset.filter(evento_id=event_id)
+        
+        # If not admin, only see own certificates
+        if user.role != 'Administrador':
+            queryset = queryset.filter(usuario=user)
+            
+        return queryset
+
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        certificate = self.get_object()
+        from django.http import HttpResponse
+        response = HttpResponse(certificate.pdf_blob, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename=\"{certificate.filename}\"'
+        return response
+
+class DownloadCertificatesZipView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        ids = request.data.get('certificate_ids', []) # Standardized to certificate_ids per user request
+        
+        if not ids:
+            return Response({"error": "No se seleccionaron certificados."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Buscar certificados
+        certificates = GeneratedCertificate.objects.filter(id__in=ids)
+        
+        if not certificates.exists():
+            return Response({"error": "No se encontraron certificados válidos."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Crear el archivo ZIP en memoria
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for cert in certificates:
+                if cert.pdf_blob:
+                    filename = cert.filename or f"certificado_{cert.id}.pdf"
+                    zip_file.writestr(filename, cert.pdf_blob)
+        
+        # Preparar respuesta
+        zip_buffer.seek(0)
+        from django.http import HttpResponse
+        response = HttpResponse(zip_buffer, content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="certificados_seleccionados.zip"'
+        return response
+
+
+class UserSearchView(APIView):
+    """
+    Endpoint para buscar usuarios con rol Estudiante o Docente.
+    Permite al Coordinador (o Admin) buscar personas para asignar como staff.
+    GET /api/users/search/?q=<term>
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.role not in ('Administrador', 'Coordinador'):
+            return Response({'error': 'No tienes permisos para buscar usuarios'}, status=status.HTTP_403_FORBIDDEN)
+
+        q = request.query_params.get('q', '').strip()
+        if len(q) < 2:
+            return Response({'results': []})
+
+        queryset = CustomUser.objects.filter(
+            role__in=['Estudiante', 'Docente'],
+            is_active=True
+        ).filter(
+            Q(full_name__icontains=q) |
+            Q(id__icontains=q) |
+            Q(email__icontains=q)
+        )[:20]
+
+        serializer = UserSearchSerializer(queryset, many=True)
+        return Response({'results': serializer.data})

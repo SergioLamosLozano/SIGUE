@@ -63,8 +63,8 @@ class CodigoQRAdmin(admin.ModelAdmin):
 @admin.register(Evento)
 class EventoAdmin(admin.ModelAdmin):
     """Admin para gestionar Eventos"""
-    list_display = ['titulo', 'fecha', 'lugar', 'creado_por', 'requiere_refrigerio']
-    list_filter = ['fecha', 'requiere_refrigerio']
+    list_display = ['titulo', 'fecha', 'lugar', 'creado_por', 'requiere_entregable']
+    list_filter = ['fecha', 'requiere_entregable']
     search_fields = ['titulo', 'descripcion']
 
 @admin.register(Inscripcion)

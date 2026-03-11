@@ -5,12 +5,19 @@
  * Uses CSS classes from Certificados.css
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import '../../styles/Certificados.css';
+import CertificateDesigner from './CertificateDesigner';
+import CertificateSender from './CertificateSender';
+import CertificateHistory from './CertificateHistory';
 
 const CertificatesPanel = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const [view, setView] = useState('menu'); // 'menu' | 'designer' | 'sender'
+    const backUrl = user?.role === 'Coordinador' ? '/coordinador-dashboard' : '/admin-dashboard';
 
     return (
         <div className="certificates-panel">
@@ -18,55 +25,80 @@ const CertificatesPanel = () => {
             <div className="page-header-card">
                 <div className="page-header-card__left">
                     <button 
-                        onClick={() => navigate('/admin-dashboard')} 
+                        onClick={() => navigate(backUrl)} 
                         className="btn btn-secondary"
                     >
                         ← Volver
                     </button>
                     <h2 className="page-title">📜 Gestión de Certificados</h2>
                 </div>
-                <div className="page-header-card__right">
-                    {/* Future: Add action button here */}
-                </div>
             </div>
 
-            {/* Main Content */}
-            <div className="certificates-content">
-                <div className="certificates-content__icon">📜</div>
-                
-                <h3 className="certificates-content__title">
-                    Módulo de Certificados
-                </h3>
-                
-                <p className="certificates-content__description">
-                    Desde aquí podrás gestionar plantillas de certificados, 
-                    visualizar certificados emitidos y generar certificados masivos 
-                    para los eventos que requieran.
-                </p>
+            {/* Main Content: MENU */}
+            {view === 'menu' && (
+                <div className="certificates-content">
+                    <div className="certificates-content__icon">📜</div>
+                    
+                    <h3 className="certificates-content__title">
+                        Módulo de Certificados
+                    </h3>
+                    
+                    <p className="certificates-content__description">
+                        Gestión de certificados académicos. 
+                        Diseña plantillas, genera documentos masivos y consulta el historial.
+                    </p>
 
-                {/* Placeholder Cards for Future Features */}
-                <div className="certificates-features">
-                    <div className="certificates-feature-card certificates-feature-card--placeholder">
-                        <span className="certificates-feature-card__icon">📋</span>
-                        <p className="certificates-feature-card__title">Plantillas</p>
-                        <small className="certificates-feature-card__status">Próximamente</small>
-                    </div>
+                    {/* Features Cards */}
+                    <div className="certificates-features">
+                        {/* PLANTILLA CARD */}
+                        <div 
+                            className="certificates-feature-card certificates-feature-card--designer" 
+                            onClick={() => setView('designer')}
+                        >
+                            <span className="certificates-feature-card__icon">🎨</span>
+                            <p className="certificates-feature-card__title">Diseñador de Plantillas</p>
+                            <small className="certificates-feature-card__status certificates-feature-card__status--primary">Editor Visual</small>
+                        </div>
 
-                    <div className="certificates-feature-card certificates-feature-card--placeholder">
-                        <span className="certificates-feature-card__icon">📊</span>
-                        <p className="certificates-feature-card__title">Historial</p>
-                        <small className="certificates-feature-card__status">Próximamente</small>
-                    </div>
+                        {/* BULK GENERATION CARD */}
+                        <div 
+                            className="certificates-feature-card certificates-feature-card--sender"
+                            onClick={() => setView('sender')}
+                        >
+                            <span className="certificates-feature-card__icon">🚀</span>
+                            <p className="certificates-feature-card__title">Generación Masiva</p>
+                            <small className="certificates-feature-card__status certificates-feature-card__status--green">Generar y Enviar</small>
+                        </div>
 
-                    <div className="certificates-feature-card certificates-feature-card--placeholder">
-                        <span className="certificates-feature-card__icon">⚙️</span>
-                        <p className="certificates-feature-card__title">Configuración</p>
-                        <small className="certificates-feature-card__status">Próximamente</small>
+                        {/* HISTORY CARD */}
+                        <div 
+                            className="certificates-feature-card certificates-feature-card--history"
+                            onClick={() => setView('history')}
+                        >
+                            <span className="certificates-feature-card__icon">📂</span>
+                            <p className="certificates-feature-card__title">Historial y Descargas</p>
+                            <small className="certificates-feature-card__status certificates-feature-card__status--gray">Consulta certificados generados</small>
+                        </div>
                     </div>
                 </div>
+            )}
+
+                {/* Main Content: DESIGNER */}
+                {view === 'designer' && (
+                    <CertificateDesigner onBack={() => setView('menu')} />
+                )}
+
+                {/* Main Content: SENDER */}
+                {view === 'sender' && (
+                    <CertificateSender onBack={() => setView('menu')} />
+                )}
+
+                {/* Main Content: HISTORY */}
+                {view === 'history' && (
+                    <CertificateHistory onBack={() => setView('menu')} />
+                )}
             </div>
-        </div>
-    );
-};
+        );
+    };
 
 export default CertificatesPanel;

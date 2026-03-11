@@ -1,0 +1,140 @@
+/* ========================================
+   USER CERTIFICATES - MIS CERTIFICADOS
+   ======================================== */
+
+.user-certs-card {
+    background: var(--white, #fff);
+    border-radius: var(--radius-lg, 12px);
+    box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.08));
+    padding: 25px;
+    margin-top: 30px;
+}
+
+.user-certs-title {
+    margin: 0 0 20px;
+    font-size: 1.3rem;
+    color: var(--text-dark, #1a1a2e);
+}
+
+.user-certs-loading {
+    text-align: center;
+    padding: 30px;
+    color: var(--text-gray, #888);
+}
+
+/* Empty State */
+.user-certs-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-gray, #888);
+}
+
+.user-certs-empty-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.user-certs-empty p {
+    font-size: 1.1rem;
+    margin: 0 0 8px;
+    font-weight: 500;
+    color: var(--text-dark, #333);
+}
+
+.user-certs-empty-hint {
+    font-size: 0.9rem;
+    color: var(--text-gray, #888);
+}
+
+/* Count */
+.user-certs-count {
+    margin: 0 0 15px;
+    font-size: 0.95rem;
+    color: var(--text-gray, #666);
+}
+
+/* Table */
+.user-certs-table-wrapper {
+    overflow-x: auto;
+}
+
+.user-certs-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.user-certs-table thead {
+    background: #f8f9fa;
+}
+
+.user-certs-table th,
+.user-certs-table td {
+    padding: 12px 16px;
+    text-align: left;
+}
+
+.user-certs-table th {
+    font-weight: 600;
+    color: var(--text-dark, #333);
+    border-bottom: 2px solid #e9ecef;
+    font-size: 0.9rem;
+}
+
+.user-certs-table td {
+    border-bottom: 1px solid #f1f3f5;
+    color: #495057;
+    font-size: 0.95rem;
+}
+
+.user-certs-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.user-certs-event-name {
+    font-weight: 500;
+}
+
+/* Download Button */
+.user-certs-download-btn {
+    background: var(--primary-color, #d52b1e);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.user-certs-download-btn:hover:not(:disabled) {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(213, 43, 30, 0.3);
+}
+
+.user-certs-download-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .user-certs-card {
+        padding: 15px;
+    }
+
+    .user-certs-table th,
+    .user-certs-table td {
+        padding: 10px 12px;
+        font-size: 0.85rem;
+    }
+
+    .user-certs-download-btn {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+    }
+}

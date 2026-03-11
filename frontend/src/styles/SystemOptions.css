@@ -1,0 +1,100 @@
+/* SystemOptions.css */
+
+.system-options-container {
+    padding: 30px 20px;
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+.system-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    margin-bottom: 30px;
+    background: var(--white);
+    padding: 20px 25px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.system-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0;
+}
+
+.tabs-container {
+    display: flex;
+    gap: 10px;
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 30px;
+}
+
+.tab-button {
+    padding: 12px 24px;
+    background: none;
+    border: none;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s;
+}
+
+
+
+.tab-button:hover {
+    color: #1f2937;
+}
+
+.tab-button.active {
+    color: #D52B1E;
+    font-weight: 600;
+}
+
+.tab-button.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background-color: #D52B1E;
+    border-radius: 3px 3px 0 0;
+}
+
+.tab-content {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.btn-volver {
+    background-color: white;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-right: 20px;
+}
+
+.btn-volver:hover {
+    background-color: #f9fafb;
+    border-color: #9ca3af;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

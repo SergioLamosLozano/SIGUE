@@ -8,6 +8,8 @@ from .views import (
     UserUpdateView, 
     UserViewSet, 
     VerifyEmailView,
+    ResendVerificationCodeView,
+    UserSearchView,
     # Event management views
     AsistenteViewSet, 
     CodigoQRViewSet, 
@@ -16,8 +18,16 @@ from .views import (
     ProgramaViewSet,
     EstudianteActivoViewSet,
     CargarEstudiantesExcelView,
-    EnviarDifusionEventoView
+    EnviarDifusionEventoView,
+    UploadCertificateTemplateView,
+    GenerateBulkCertificatesView,
+    SendCertificatesBulkView,
+    CertificateViewSet,
+    DownloadCertificatesZipView,
+    LugarEventoViewSet
 )
+
+# ...
 
 # Router para generar automáticamente las URLs de los ViewSets
 router = DefaultRouter()
@@ -32,9 +42,13 @@ router.register(r'eventos', EventoViewSet)        # /api/eventos/ (Gestión prin
 
 # Program routes
 router.register(r'programas', ProgramaViewSet)    # /api/programas/ (Lista de programas)
+router.register(r'locations', LugarEventoViewSet)   # /api/locations/ (Lugares de eventos)
 
 # Student routes
 router.register(r'estudiantes-activos', EstudianteActivoViewSet, basename='estudiantes-activos')
+
+# Certificate History route
+router.register(r'certificates', CertificateViewSet, basename='certificates')
 
 urlpatterns = [
     # =====================================================================
@@ -52,6 +66,12 @@ urlpatterns = [
 
     # Verificar email
     path('users/auth/verify/', VerifyEmailView.as_view(), name='auth_verify'),
+
+    # Reenviar código de verificación
+    path('users/auth/resend-code/', ResendVerificationCodeView.as_view(), name='resend_code'),
+
+    # Buscar usuarios (Estudiante/Docente) para asignar staff
+    path('users/search/', UserSearchView.as_view(), name='user_search'),
     
     # Ver y editar el perfil propio del usuario autenticado
     path('users/profile/', UserUpdateView.as_view(), name='user_profile'),
@@ -63,6 +83,18 @@ urlpatterns = [
     # Cargar estudiantes activos desde Excel
     path('admin/cargar-estudiantes/', CargarEstudiantesExcelView.as_view(), name='cargar_estudiantes'),
     
+    # Subir Plantilla de Certificado
+    path('certificates/upload/', UploadCertificateTemplateView.as_view(), name='upload_template'),
+
+    # Generar Certificados Masivos
+    path('certificates/generate-bulk/', GenerateBulkCertificatesView.as_view(), name='generate_bulk_certificates'),
+
+    # Enviar Certificados por Email (Masivo)
+    path('certificates/send-bulk/', SendCertificatesBulkView.as_view(), name='send_bulk_certificates'),
+
+    # Descargar ZIP de certificados
+    path('certificates/download-zip/', DownloadCertificatesZipView.as_view(), name='download_zip'),
+
     # Enviar difusión de evento a estudiantes
     path('admin/eventos/<int:evento_id>/difusion/', EnviarDifusionEventoView.as_view(), name='enviar_difusion'),
     

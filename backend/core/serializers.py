@@ -1,6 +1,6 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import CustomUser, Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle
+from .models import CustomUser, Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle, GeneratedCertificate, LugarEvento, EventoStaff
 import random
 from django.core.mail import send_mail
 from django.conf import settings
@@ -31,48 +31,93 @@ class RegisterSerializer(serializers.ModelSerializer):
     """
     Serializador para el registro de nuevos usuarios.
     Maneja la creación del usuario y el hasheo de la contraseña.
+    Permite sobreescribir usuarios inactivos (is_active=False) si vuelven a registrarse.
     """
+    # Redefinimos id y email explícitamente sin UniqueValidator para poder
+    # interceptar la validación y permitir actualizar usuarios is_active=False
+    id = serializers.CharField(max_length=20)
+    email = serializers.EmailField(max_length=255)
     password = serializers.CharField(write_only=True) # La contraseña solo se escribe, no se lee
 
     class Meta:
         model = CustomUser
         fields = ['id', 'full_name', 'email', 'password', 'role', 'dependency']
 
+    def validate(self, attrs):
+        id_user = attrs.get('id')
+        email = attrs.get('email')
+        
+        # Validación personalizada de unicidad: solo bloquea si el usuario está ACTIVO.
+        # Si existe pero está inactivo (is_active=False), permitimos que continúe 
+        # para actualizarlo en el método create().
+        
+        # Validar ID
+        existing_user_by_id = CustomUser.objects.filter(id=id_user).first()
+        if existing_user_by_id and existing_user_by_id.is_active:
+            raise serializers.ValidationError({"id": "Este documento de identidad ya está registrado y activo."})
+            
+        # Validar Email
+        existing_user_by_email = CustomUser.objects.filter(email=email).first()
+        if existing_user_by_email:
+            # Si el email existe, debemos revisar si es activo o pertenece a otro usuario activo
+            if existing_user_by_email.is_active:
+                 raise serializers.ValidationError({"email": "Este correo electrónico ya está en uso por una cuenta activa."})
+            elif existing_user_by_id and existing_user_by_id != existing_user_by_email:
+                 # El ID existe (inactivo) y el EMAIL existe en otro usuario (inactivo). 
+                 # Un caso extremo pero posible. Bloquearemos para evitar mezcla de identidades.
+                 raise serializers.ValidationError({"email": "Este correo electrónico ya está registrado en otra cuenta inactiva. Usa otro correo o tu documento original."})
+            
+        return attrs
+
     def create(self, validated_data):
         """
-        Crea un nuevo usuario usando el CustomUserManager.
+        Crea un nuevo usuario o actualiza uno inactivo.
         """
-        # Asegurar que el email está presente (aunque el frontend lo valide, el modelo lo permite nulo, aquí lo forzamos)
-        if not validated_data.get('email'):
-            raise serializers.ValidationError({"email": "El correo electrónico es obligatorio para el registro."})
+        id_user = validated_data['id']
+        email = validated_data['email']
+        
+        # Revisamos si ya existe un registro inactivo con este id o email
+        user = CustomUser.objects.filter(id=id_user).first()
+        if not user:
+             user = CustomUser.objects.filter(email=email).first()
 
-        # Generar código de 4 dígitos
+        # Generar nuevo código de 4 dígitos
         code = str(random.randint(1000, 9999))
 
-        user = CustomUser.objects.create_user(
-            id=validated_data['id'],
-            password=validated_data['password'],
-            full_name=validated_data['full_name'],
-            email=validated_data['email'],
-            role=validated_data['role'],
-            dependency=validated_data.get('dependency', ''),
-            is_active=False, # Inactivo hasta verificar
-            verification_code=code
-        )
+        if user and not user.is_active:
+            # REUTILIZAR EL USUARIO INACTIVO
+            user.id = id_user
+            user.email = email
+            user.full_name = validated_data['full_name']
+            user.role = validated_data['role']
+            user.dependency = validated_data.get('dependency', '')
+            user.set_password(validated_data['password'])
+            user.verification_code = code
+            user.save()
+        else:
+            # CREAR UNO NUEVO
+            user = CustomUser.objects.create_user(
+                id=id_user,
+                password=validated_data['password'],
+                full_name=validated_data['full_name'],
+                email=email,
+                role=validated_data['role'],
+                dependency=validated_data.get('dependency', ''),
+                is_active=False, # Inactivo hasta verificar
+                verification_code=code
+            )
 
         # Enviar correo
         try:
              print(f"DEBUG CODE for {user.email}: {code}") # Para facilitar pruebas locales
              send_mail(
                 'Confirma tu cuenta - SIGUE',
-                f'Hola {user.full_name},\\n\\nTu código de verificación es: {code}',
+                f'Hola {user.full_name}, Tu nuevo código de verificación es: {code}',
                 settings.DEFAULT_FROM_EMAIL,
                 [user.email],
                 fail_silently=False,
             )
         except Exception as e:
-            # Si falla el correo, podríamos borrar el usuario o solo loguear. 
-            # Por ahora, permitimos que falle pero logueamos (idealmente rollback manual o transaccional).
             print(f"Error enviando correo: {e}")
 
         return user
@@ -80,26 +125,37 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     """
     Serializador para que el usuario actualice su propio perfil.
+    Ahora requiere current_password para cambiar la contraseña.
     """
-    password = serializers.CharField(write_only=True, required=False) # Contraseña opcional en actualización
+    password = serializers.CharField(write_only=True, required=False)
+    current_password = serializers.CharField(write_only=True, required=False) # Nuevo campo
 
     class Meta:
         model = CustomUser
-        # El ID y el Rol son de solo lectura por seguridad (el usuario no puede auto-promoverse o cambiar su ID)
-        fields = ['id', 'full_name', 'email', 'role', 'dependency', 'password']
+        fields = ['id', 'full_name', 'email', 'role', 'dependency', 'password', 'current_password']
         read_only_fields = ['id', 'role']
 
-    def update(self, instance, validated_data):
-        """
-        Actualiza los datos del usuario. Si se provee password, se actualiza de forma segura.
-        """
-        password = validated_data.pop('password', None)
+    def validate(self, attrs):
+        # Si se envía una nueva contraseña, es OBLIGATORIO enviar la actual
+        if attrs.get('password'):
+            current_password = attrs.get('current_password')
+            if not current_password:
+                raise serializers.ValidationError({"current_password": "Debes ingresar tu contraseña actual para cambiarla."})
+            
+            # Verificar que la contraseña actual sea correcta
+            user = self.instance
+            if not user.check_password(current_password):
+                raise serializers.ValidationError({"current_password": "La contraseña actual es incorrecta."})
         
-        # Actualiza campos genéricos
+        return attrs
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        validated_data.pop('current_password', None) # Quitar current_password si existe
+        
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         
-        # Si hay nueva contraseña, usar set_password para encriptar
         if password:
             instance.set_password(password)
         
@@ -189,6 +245,13 @@ class EstudianteActivoSerializer(serializers.ModelSerializer):
         model = EstudianteActivoUnivalle
         fields = ['codigo_estudiante', 'nombre', 'correo', 'programa', 'programa_nombre']
 
+
+class LugarEventoSerializer(serializers.ModelSerializer):
+    """Serializador para Lugares de Evento."""
+    class Meta:
+        model = LugarEvento
+        fields = ['id', 'descripcion']
+
 class EventoSerializer(serializers.ModelSerializer):
     """
     Serializador para Eventos.
@@ -197,6 +260,7 @@ class EventoSerializer(serializers.ModelSerializer):
     """
     creado_por_nombre = serializers.CharField(source='creado_por.full_name', read_only=True)
     ya_inscrito = serializers.SerializerMethodField()
+    lugar_nombre = serializers.CharField(source='lugar.descripcion', read_only=True)
     
     # Campos para programas dirigidos
     programas_dirigidos = ProgramaSerializer(many=True, read_only=True)
@@ -217,10 +281,10 @@ class EventoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Evento
-        fields = ['id', 'titulo', 'descripcion', 'fecha', 'fecha_fin', 'lugar', 'creado_por', 'creado_por_nombre', 'fecha_creacion', 'ya_inscrito',
+        fields = ['id', 'titulo', 'descripcion', 'fecha', 'fecha_fin', 'lugar', 'lugar_nombre', 'creado_por', 'creado_por_nombre', 'fecha_creacion', 'ya_inscrito',
                  'flyer', 'flyer_base64', 'has_flyer', 'flyer_filename', 'flyer_content_type',
-                 'requiere_refrigerio', 'cantidad_refrigerios', 'detalles_refrigerios', 'asistencia_qr', 'estado',
-                 'programas_dirigidos', 'programas_dirigidos_ids']
+                 'requiere_entregable', 'cantidad_entregables', 'detalles_entregables', 'asistencia_qr', 'estado',
+                 'enviar_difusion', 'programas_dirigidos', 'programas_dirigidos_ids']
         read_only_fields = ['creado_por', 'fecha_creacion', 'estado', 'flyer_filename', 'flyer_content_type']
 
     def get_ya_inscrito(self, obj):
@@ -278,3 +342,40 @@ class InscripcionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Inscripcion
         fields = ['id', 'evento', 'evento_titulo', 'usuario', 'fecha_inscripcion', 'asistio']
+
+
+class GeneratedCertificateSerializer(serializers.ModelSerializer):
+    estudiante_nombre = serializers.CharField(source='usuario.full_name', read_only=True)
+    estudiante_documento = serializers.CharField(source='usuario.id', read_only=True)
+    estudiante_email = serializers.CharField(source='usuario.email', read_only=True)
+    evento_titulo = serializers.CharField(source='evento.titulo', read_only=True)
+    
+    class Meta:
+        model = GeneratedCertificate
+        fields = ['id', 'estudiante_nombre', 'estudiante_documento', 'estudiante_email', 'evento_titulo', 'filename', 'created_at']
+
+class EventoStaffSerializer(serializers.ModelSerializer):
+    """
+    Serializador para asignaciones de Staff a eventos.
+    Expone datos completos del usuario asignado y quién lo asignó.
+    """
+    usuario_nombre = serializers.CharField(source='usuario.full_name', read_only=True)
+    usuario_id = serializers.CharField(source='usuario.id', read_only=True)
+    usuario_email = serializers.CharField(source='usuario.email', read_only=True)
+    usuario_role = serializers.CharField(source='usuario.role', read_only=True)
+    asignado_por_nombre = serializers.CharField(source='asignado_por.full_name', read_only=True)
+
+    class Meta:
+        model = EventoStaff
+        fields = ['id', 'evento', 'usuario', 'usuario_id', 'usuario_nombre', 'usuario_email', 'usuario_role',
+                  'asignado_por', 'asignado_por_nombre', 'fecha_asignacion']
+        read_only_fields = ['fecha_asignacion', 'asignado_por']
+
+
+class UserSearchSerializer(serializers.ModelSerializer):
+    """
+    Serializador ligero para búsqueda de usuarios (Estudiante/Docente).
+    """
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'full_name', 'email', 'role', 'dependency']

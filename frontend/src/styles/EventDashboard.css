@@ -1,7 +1,5 @@
 /* ========================================
    EVENT DASHBOARD CSS
-   Styles for the individual event management dashboard
-   Uses CSS variables from global.css
    ======================================== */
 
 /* ===== MAIN CONTAINER ===== */
@@ -91,21 +89,10 @@
     font-weight: 700;
 }
 
-.event-dashboard__kpi-value--primary {
-    color: var(--primary-color);
-}
-
-.event-dashboard__kpi-value--success {
-    color: var(--success-color);
-}
-
-.event-dashboard__kpi-value--purple {
-    color: #7b1fa2;
-}
-
-.event-dashboard__kpi-value--warning {
-    color: var(--warning-color);
-}
+.event-dashboard__kpi-value--primary { color: var(--primary-color); }
+.event-dashboard__kpi-value--success { color: var(--success-color); }
+.event-dashboard__kpi-value--purple { color: #7b1fa2; }
+.event-dashboard__kpi-value--warning { color: var(--warning-color); }
 
 .event-dashboard__kpi-label {
     color: var(--text-gray);
@@ -113,10 +100,10 @@
     font-size: 0.95rem;
 }
 
-/* ===== ACTION BUTTONS GRID (4 COLUMNS) ===== */
+/* ===== ACTION BUTTONS GRID (CLEAN STYLE) ===== */
 .event-dashboard__actions {
     display: grid;
-    grid-template-columns: repeat(4, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 15px;
     margin-bottom: 30px;
 }
@@ -124,59 +111,39 @@
 .event-dashboard__action-btn {
     width: 100%;
     height: 100%;
-    min-height: 50px;
+    min-height: 60px; /* Un poco más altos para que se vean bien */
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     
-    /* Clean Style Base */
+    /* Clean Style Base (Fondo Blanco, Borde Gris) */
     background-color: #FFFFFF !important;
-    color: var(--text-dark, #1F2937) !important;
+    color: var(--text-dark, #333) !important;
     border: 1px solid #E5E7EB !important;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     transition: all 0.3s ease;
     font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
 }
 
-/* Hover Effect - Red Outline */
+/* Hover Effect - Red Outline (Estilo solicitado) */
 .event-dashboard__action-btn:hover {
-    border: 2px solid var(--primary-color) !important;
+    border: 1px solid var(--primary-color) !important;
     color: var(--primary-color) !important;
     background-color: #FFFFFF !important;
     box-shadow: 0 4px 8px rgba(213, 43, 30, 0.15);
     transform: translateY(-3px);
 }
 
-/* Remove individual background colors by commenting them out or just overriding them above with !important */
-/* Keeping classes for semantic reference but they are overridden */
-.event-dashboard__action-btn--stats,
-.event-dashboard__action-btn--certs,
-.event-dashboard__action-btn--scanner,
-.event-dashboard__action-btn--diffusion {
-    /* Styles are now handled by the base class with !important */
+.event-dashboard__action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
 }
 
-/* Responsive: 3 columns on medium, 2 on small, 1 on mobile */
-@media (max-width: 1200px) {
-    .event-dashboard__actions {
-        grid-template-columns: repeat(3, minmax(200px, 1fr));
-    }
-}
-
-@media (max-width: 900px) {
-    .event-dashboard__actions {
-        grid-template-columns: repeat(2, minmax(180px, 1fr));
-    }
-}
-
-@media (max-width: 600px) {
-    .event-dashboard__actions {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* ===== ATTENDEES SECTION ===== */
+/* ===== ATTENDEES TABLE SECTION ===== */
 .event-dashboard__attendees-title {
     margin: 0 0 20px;
     font-size: 1.25rem;
@@ -217,7 +184,7 @@
 }
 
 .event-dashboard__table thead {
-    background: var(--bg-light);
+    background: #f8f9fa; /* Fondo gris claro para encabezado */
 }
 
 .event-dashboard__table th,
@@ -229,16 +196,16 @@
 .event-dashboard__table th {
     font-weight: 600;
     color: var(--text-dark);
-    border-bottom: 2px solid var(--border-color);
+    border-bottom: 2px solid #e9ecef;
 }
 
 .event-dashboard__table td {
-    border-bottom: 1px solid var(--border-light);
-    color: var(--text-gray);
+    border-bottom: 1px solid #f1f3f5;
+    color: #495057;
 }
 
 .event-dashboard__table tbody tr:hover {
-    background: var(--bg-light);
+    background: #f8f9fa;
 }
 
 .event-dashboard__status--attended {
@@ -247,11 +214,12 @@
 }
 
 .event-dashboard__status--pending {
-    color: var(--text-gray);
+    color: #adb5bd;
 }
 
 .event-dashboard__no-email {
     color: #999;
+    font-style: italic;
 }
 
 .event-dashboard__empty-row td {
@@ -314,31 +282,46 @@
     color: var(--text-gray);
 }
 
-/* ===== MODAL STYLES ===== */
-.event-dashboard__modal-info {
-    background: #e3f2fd;
-    color: #0d47a1;
-    padding: 15px;
-    border-radius: var(--radius-md);
-    margin-bottom: 20px;
+
+/* --- ESTILOS PARA EL HEADER CON IMAGEN REDONDA --- */
+
+/* Contenedor flexible para poner texto a la izq e imagen a la der */
+.header-content-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
 }
 
-.event-dashboard__modal-info p {
-    margin: 0;
+/* El texto ocupa el espacio disponible */
+.header-info-column {
+    flex: 1;
 }
 
-.event-dashboard__modal-info ul {
-    margin: 10px 0 0 20px;
-    padding: 0;
+/* Estilos de la imagen circular */
+.event-flyer-circle {
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #d52b1e;
+    box-shadow: 0 10px 6px rgba(0, 0, 0, 0.2);
+    background-color: white;
 }
 
-.event-dashboard__preview-btn {
-    margin-right: auto;
-    background: #e0f7fa;
-    color: #006064;
-    border-color: #b2ebf2;
-}
-
-.event-dashboard__preview-btn:hover {
-    background: #b2ebf2;
+/* En celulares (pantallas pequeñas), ponemos la imagen arriba */
+@media (max-width: 768px) {
+    .header-content-wrapper {
+        flex-direction: column-reverse;
+        text-align: center;
+    }
+    
+    .event-flyer-circle {
+        width: 150px;
+        height: 150px;
+    }
+    
+    .event-dashboard__programs-list {
+        justify-content: center;
+    }
 }

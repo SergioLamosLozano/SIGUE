@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import '../../styles/ProgramasManagement.css';
+import '../../styles/ProgramasManagement.css'; // Reusing styles
 
-const ProgramasManagement = ({ hideHeader = false }) => {
-    const navigate = useNavigate();
-    const [programas, setProgramas] = useState([]);
+const LugaresManagement = ({ hideHeader = false }) => {
+    const [lugares, setLugares] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
@@ -13,31 +11,30 @@ const ProgramasManagement = ({ hideHeader = false }) => {
     // Modal state
     const [showModal, setShowModal] = useState(false);
     const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
-    const [selectedPrograma, setSelectedPrograma] = useState(null);
-    const [formData, setFormData] = useState({ id: '', descripcion: '' });
+    const [selectedLugar, setSelectedLugar] = useState(null);
+    const [formData, setFormData] = useState({ descripcion: '' });
 
     // Delete confirmation
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [programaToDelete, setProgramaToDelete] = useState(null);
+    const [lugarToDelete, setLugarToDelete] = useState(null);
 
     const token = sessionStorage.getItem('token');
     const authConfig = { headers: { Authorization: `Bearer ${token}` } };
 
     useEffect(() => {
-        fetchProgramas();
+        fetchLugares();
     }, []);
 
-    const fetchProgramas = async () => {
+    const fetchLugares = async () => {
         try {
             setLoading(true);
-            const res = await axios.get('http://localhost:8000/api/programas/', authConfig);
-            // Handle both array response and paginated response
+            const res = await axios.get('http://localhost:8000/api/locations/', authConfig);
             const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
-            setProgramas(data);
+            setLugares(data);
             setError('');
         } catch (err) {
-            setError('Error al cargar los programas');
-            setProgramas([]); // Ensure it's always an array
+            setError('Error al cargar las ubicaciones');
+            setLugares([]);
             console.error(err);
         } finally {
             setLoading(false);
@@ -46,70 +43,70 @@ const ProgramasManagement = ({ hideHeader = false }) => {
 
     const handleOpenCreateModal = () => {
         setModalMode('create');
-        setFormData({ id: '', descripcion: '' });
-        setSelectedPrograma(null);
+        setFormData({ descripcion: '' });
+        setSelectedLugar(null);
         setShowModal(true);
     };
 
-    const handleOpenEditModal = (programa) => {
+    const handleOpenEditModal = (lugar) => {
         setModalMode('edit');
-        setFormData({ id: programa.id, descripcion: programa.descripcion });
-        setSelectedPrograma(programa);
+        setFormData({ descripcion: lugar.descripcion });
+        setSelectedLugar(lugar);
         setShowModal(true);
     };
 
     const handleCloseModal = () => {
         setShowModal(false);
-        setFormData({ id: '', descripcion: '' });
-        setSelectedPrograma(null);
+        setFormData({ descripcion: '' });
+        setSelectedLugar(null);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
         if (!formData.descripcion.trim()) {
-            setError('El nombre del programa es obligatorio');
+            setError('La descripción del lugar es obligatoria');
             return;
         }
 
         try {
             if (modalMode === 'create') {
-                // Para crear, necesitamos enviar el ID también
-                if (!formData.id) {
-                    setError('El ID del programa es obligatorio');
-                    return;
-                }
-                await axios.post('http://localhost:8000/api/programas/', formData, authConfig);
-                setSuccessMessage('Programa creado exitosamente');
+                await axios.post('http://localhost:8000/api/locations/', formData, authConfig);
+                setSuccessMessage('Lugar creado exitosamente');
             } else {
-                await axios.put(`http://localhost:8000/api/programas/${selectedPrograma.id}/`, formData, authConfig);
-                setSuccessMessage('Programa actualizado exitosamente');
+                await axios.put(`http://localhost:8000/api/locations/${selectedLugar.id}/`, formData, authConfig);
+                setSuccessMessage('Lugar actualizado exitosamente');
             }
 
             handleCloseModal();
-            fetchProgramas();
+            fetchLugares();
             setTimeout(() => setSuccessMessage(''), 3000);
         } catch (err) {
-            setError(err.response?.data?.detail || 'Error al guardar el programa');
+            setError(err.response?.data?.detail || 'Error al guardar la ubicación');
             console.error(err);
         }
     };
 
-    const handleDeleteClick = (programa) => {
-        setProgramaToDelete(programa);
+    const handleDeleteClick = (lugar) => {
+        setLugarToDelete(lugar);
         setShowDeleteConfirm(true);
     };
 
     const handleConfirmDelete = async () => {
         try {
-            await axios.delete(`http://localhost:8000/api/programas/${programaToDelete.id}/`, authConfig);
-            setSuccessMessage('Programa eliminado exitosamente');
+            await axios.delete(`http://localhost:8000/api/locations/${lugarToDelete.id}/`, authConfig);
+            setSuccessMessage('Lugar eliminado exitosamente');
             setShowDeleteConfirm(false);
-            setProgramaToDelete(null);
-            fetchProgramas();
+            setLugarToDelete(null);
+            fetchLugares();
             setTimeout(() => setSuccessMessage(''), 3000);
         } catch (err) {
-            setError(err.response?.data?.detail || 'Error al eliminar el programa');
+            // Check for specific error related to PROTECT
+            if (err.response?.status === 500 || err.response?.data?.detail?.includes('ProtectedError')) {
+                setError('No se puede eliminar este lugar porque tiene eventos asociados.');
+            } else {
+                setError(err.response?.data?.detail || 'Error al eliminar la ubicación');
+            }
             setShowDeleteConfirm(false);
         }
     };
@@ -117,37 +114,28 @@ const ProgramasManagement = ({ hideHeader = false }) => {
     if (loading) {
         return (
             <div className="programas-container">
-                <div className="loading-spinner">Cargando programas...</div>
+                <div className="loading-spinner">Cargando ubicaciones...</div>
             </div>
         );
     }
 
     return (
         <div className="programas-container">
-            {/* Header */}
             {!hideHeader && (
                 <div className="programas-header">
                     <div className="header-left">
-                        <button onClick={() => navigate('/admin-dashboard')} className="btn btn-secondary btn-back">
-                            ← Volver
-                        </button>
-                        <h2>📚 Programas Académicos</h2>
+                        <h2>📍 Gestión de Ubicaciones</h2>
                     </div>
                     <button onClick={handleOpenCreateModal} className="btn btn-primary btn-add">
-                        + Nuevo Programa
+                        + Nueva Ubicación
                     </button>
                 </div>
             )}
 
-            {/* In tabbed view, we might want just the Add button if header is hidden? 
-                Actually, the SystemOptions will likely have the Add button or we keep the Add button here but styled differently?
-                Let's keep it simple: If header is hidden, we still need the "New Entity" button. 
-                Let's put the "New" button in a sub-header if hideHeader is true.
-            */}
             {hideHeader && (
                 <div className="programas-subheader" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
                     <button onClick={handleOpenCreateModal} className="btn btn-primary btn-add">
-                        + Nuevo Programa
+                        + Nueva Ubicación
                     </button>
                 </div>
             )}
@@ -162,27 +150,27 @@ const ProgramasManagement = ({ hideHeader = false }) => {
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Nombre del Programa</th>
+                            <th>Descripción del Lugar</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {programas.map(programa => (
-                            <tr key={programa.id}>
-                                <td className="id-cell">{programa.id}</td>
-                                <td className="name-cell">{programa.descripcion}</td>
+                        {lugares.map(lugar => (
+                            <tr key={lugar.id}>
+                                <td className="id-cell">{lugar.id}</td>
+                                <td className="name-cell">{lugar.descripcion}</td>
                                 <td className="actions-cell">
                                     <button
-                                        onClick={() => handleOpenEditModal(programa)}
+                                        onClick={() => handleOpenEditModal(lugar)}
                                         className="btn btn-sm btn-edit"
-                                        title="Editar programa"
+                                        title="Editar lugar"
                                     >
                                         ✏️ Editar
                                     </button>
                                     <button
-                                        onClick={() => handleDeleteClick(programa)}
+                                        onClick={() => handleDeleteClick(lugar)}
                                         className="btn btn-sm btn-danger"
-                                        title="Eliminar programa"
+                                        title="Eliminar lugar"
                                     >
                                         🗑️ Eliminar
                                     </button>
@@ -192,11 +180,11 @@ const ProgramasManagement = ({ hideHeader = false }) => {
                     </tbody>
                 </table>
 
-                {programas.length === 0 && (
+                {lugares.length === 0 && (
                     <div className="empty-state">
-                        <p>No hay programas académicos registrados.</p>
+                        <p>No hay ubicaciones registradas.</p>
                         <button onClick={handleOpenCreateModal} className="btn btn-primary">
-                            Crear el primer programa
+                            Crear la primera ubicación
                         </button>
                     </div>
                 )}
@@ -207,32 +195,17 @@ const ProgramasManagement = ({ hideHeader = false }) => {
                 <div className="modal-overlay" onClick={handleCloseModal}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h3>{modalMode === 'create' ? '➕ Nuevo Programa' : '✏️ Editar Programa'}</h3>
+                            <h3>{modalMode === 'create' ? '➕ Nueva Ubicación' : '✏️ Editar Ubicación'}</h3>
                             <button className="modal-close" onClick={handleCloseModal}>✕</button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">
-                                <label>ID del Programa *</label>
-                                <input
-                                    type="number"
-                                    value={formData.id}
-                                    onChange={e => setFormData({ ...formData, id: e.target.value })}
-                                    placeholder="Ej: 101"
-                                    required
-                                    disabled={modalMode === 'edit'}
-                                    className={modalMode === 'edit' ? 'input-disabled' : ''}
-                                />
-                                {modalMode === 'edit' && (
-                                    <small className="help-text">El ID no puede modificarse</small>
-                                )}
-                            </div>
-                            <div className="form-group">
-                                <label>Nombre del Programa *</label>
+                                <label>Descripción del Lugar *</label>
                                 <input
                                     type="text"
                                     value={formData.descripcion}
                                     onChange={e => setFormData({ ...formData, descripcion: e.target.value })}
-                                    placeholder="Ej: Ingeniería de Sistemas"
+                                    placeholder="Ej: Auditorio Principal"
                                     required
                                     autoFocus
                                 />
@@ -242,7 +215,7 @@ const ProgramasManagement = ({ hideHeader = false }) => {
                                     Cancelar
                                 </button>
                                 <button type="submit" className="btn btn-primary">
-                                    {modalMode === 'create' ? 'Crear Programa' : 'Guardar Cambios'}
+                                    {modalMode === 'create' ? 'Crear Ubicación' : 'Guardar Cambios'}
                                 </button>
                             </div>
                         </form>
@@ -258,9 +231,9 @@ const ProgramasManagement = ({ hideHeader = false }) => {
                             <h3>⚠️ Confirmar Eliminación</h3>
                         </div>
                         <div className="modal-body">
-                            <p>¿Estás seguro de eliminar el programa:</p>
-                            <p className="programa-name"><strong>{programaToDelete?.descripcion}</strong></p>
-                            <p className="warning-text">Esta acción no se puede deshacer y podría afectar a los estudiantes asociados.</p>
+                            <p>¿Estás seguro de eliminar el lugar:</p>
+                            <p className="programa-name"><strong>{lugarToDelete?.descripcion}</strong></p>
+                            <p className="warning-text">Esta acción no se puede deshacer. Si el lugar tiene eventos asociados, no podrá eliminarse.</p>
                         </div>
                         <div className="modal-footer">
                             <button className="btn btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
@@ -277,4 +250,4 @@ const ProgramasManagement = ({ hideHeader = false }) => {
     );
 };
 
-export default ProgramasManagement;
+export default LugaresManagement;
