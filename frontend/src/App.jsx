@@ -11,6 +11,7 @@ import './styles/global.css'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Login from './pages/Login'
 import ProtectedRoute from './components/ProtectedRoute'
+import api from './services/api';
 
 // Dashboard Components
 import AsistentesList from './components/users/AsistentesList'
@@ -26,6 +27,9 @@ import ExcelUpload from './components/admin/ExcelUpload'
 import SystemOptions from './components/admin/SystemOptions'
 import CertificatesPanel from './components/admin/CertificatesPanel'
 import CertificateHistory from './components/admin/CertificateHistory'
+import CoordinadorDashboard from './components/coordinador/CoordinadorDashboard'
+import StaffManagement from './components/coordinador/StaffManagement'
+import StaffEventosList from './components/events/StaffEventosList'
 
 /**
  * DashboardHeader Component
@@ -136,22 +140,62 @@ const AdminEvents = () => (
 );
 
 // Student Dashboard
-const StudentDashboard = () => (
-    <div className="role-panel">
-        <h2>Panel de Estudiante</h2>
-        <p>Bienvenido Estudiante. Aquí podrás ver, inscribirte y consultar el historial de eventos.</p>
-        <EventList />
-    </div>
-);
+const StudentDashboard = () => {
+    const [isStaff, setIsStaff] = useState(false);
+
+    React.useEffect(() => {
+        api.get('/eventos/mis-eventos-staff/')
+            .then(res => setIsStaff(res.data.length > 0))
+            .catch(err => console.error(err));
+    }, []);
+
+    return (
+        <div className="role-panel">
+            <h2>Panel de Estudiante</h2>
+            <p>Bienvenido Estudiante. Aquí podrás ver, inscribirte y consultar el historial de eventos.</p>
+            {isStaff && (
+                <div className="dashboard-grid" style={{ marginBottom: '30px' }}>
+                    <DashboardCard
+                        to="/staff-dashboard/events"
+                        icon="📋"
+                        title="Apoyo Logístico (Staff)"
+                        description="Accede al panel de control y escáner de asistencia de los eventos donde has sido asignado como staff."
+                    />
+                </div>
+            )}
+            <EventList />
+        </div>
+    );
+};
 
 // Teacher Dashboard
-const TeacherDashboard = () => (
-    <div className="role-panel">
-        <h2>Panel de Docente</h2>
-        <p>Bienvenido Docente. Puedes crear eventos (sujetos a aprobación).</p>
-        <EventList canCreate={true} />
-    </div>
-);
+const TeacherDashboard = () => {
+    const [isStaff, setIsStaff] = useState(false);
+
+    React.useEffect(() => {
+        api.get('/eventos/mis-eventos-staff/')
+            .then(res => setIsStaff(res.data.length > 0))
+            .catch(err => console.error(err));
+    }, []);
+
+    return (
+        <div className="role-panel">
+            <h2>Panel de Docente</h2>
+            <p>Bienvenido Docente. Aquí puedes ver e inscribirte a los eventos disponibles.</p>
+            {isStaff && (
+                <div className="dashboard-grid" style={{ marginBottom: '30px' }}>
+                    <DashboardCard
+                        to="/staff-dashboard/events"
+                        icon="📋"
+                        title="Apoyo Logístico (Staff)"
+                        description="Accede al panel de control y escáner de asistencia de los eventos donde has sido asignado como staff."
+                    />
+                </div>
+            )}
+            <EventList canCreate={false} />
+        </div>
+    );
+};
 
 // Assistant Dashboard (Support Staff)
 const AssistantDashboard = () => (
@@ -170,6 +214,7 @@ const ProfilePage = () => {
     else if (user?.role === 'Estudiante') homeLink = "/student-dashboard";
     else if (user?.role === 'Docente') homeLink = "/teacher-dashboard";
     else if (user?.role === 'Asistente') homeLink = "/assistant-dashboard";
+    else if (user?.role === 'Coordinador') homeLink = "/coordinador-dashboard";
 
     return (
         <div className="container">
@@ -183,6 +228,8 @@ const ProfilePage = () => {
  * Main App Component
  * Defines all application routes and authentication logic.
  */
+import React, { useState } from 'react';
+
 function App() {
     return (
         <AuthProvider>
@@ -263,6 +310,22 @@ function App() {
                                     <StudentDashboard />
                                 </div>
                             } />
+                            <Route path="/staff-dashboard/events" element={
+                                <div className="container">
+                                    <DashboardHeader title="Apoyo Logístico (Staff)" homeLink="/student-dashboard" />
+                                    <StaffEventosList />
+                                </div>
+                            } />
+                            <Route path="/staff-dashboard/event/:id" element={
+                                <div className="container">
+                                    <EventDashboard />
+                                </div>
+                            } />
+                            <Route path="/staff-dashboard/event/:id/scanner" element={
+                                <div className="container">
+                                    <QRScanner />
+                                </div>
+                            } />
                         </Route>
 
                         {/* Protected Routes - Teacher */}
@@ -271,6 +334,61 @@ function App() {
                                 <div className="container">
                                     <DashboardHeader title="Portal Docente" />
                                     <TeacherDashboard />
+                                </div>
+                            } />
+                            <Route path="/staff-dashboard/events" element={
+                                <div className="container">
+                                    <DashboardHeader title="Apoyo Logístico (Staff)" homeLink="/teacher-dashboard" />
+                                    <StaffEventosList />
+                                </div>
+                            } />
+                            <Route path="/staff-dashboard/event/:id" element={
+                                <div className="container">
+                                    <EventDashboard />
+                                </div>
+                            } />
+                            <Route path="/staff-dashboard/event/:id/scanner" element={
+                                <div className="container">
+                                    <QRScanner />
+                                </div>
+                            } />
+                        </Route>
+
+                        {/* Protected Routes - Coordinador */}
+                        <Route element={<ProtectedRoute allowedRoles={['Coordinador']} />}>
+                            <Route path="/coordinador-dashboard" element={
+                                <div className="container">
+                                    <DashboardHeader title="Portal Coordinador" homeLink="/coordinador-dashboard" />
+                                    <CoordinadorDashboard />
+                                </div>
+                            } />
+                            <Route path="/coordinador-dashboard/events" element={
+                                <div className="container">
+                                    <DashboardHeader title="Gestión de Eventos" homeLink="/coordinador-dashboard" />
+                                    <EventList canCreate={true} />
+                                </div>
+                            } />
+                            <Route path="/coordinador-dashboard/staff" element={
+                                <div className="container">
+                                    <DashboardHeader title="Gestión de Staff" homeLink="/coordinador-dashboard" />
+                                    <StaffManagement />
+                                </div>
+                            } />
+                            <Route path="/coordinador-dashboard/certificates" element={
+                                <div className="container">
+                                    <DashboardHeader title="Gestión de Certificados" homeLink="/coordinador-dashboard" />
+                                    <CertificatesPanel />
+                                </div>
+                            } />
+                            <Route path="/coordinador-dashboard/certificates/history" element={
+                                <div className="container">
+                                    <DashboardHeader title="Historial de Certificados" homeLink="/coordinador-dashboard" />
+                                    <CertificateHistory />
+                                </div>
+                            } />
+                            <Route path="/coordinador-dashboard/event/:id" element={
+                                <div className="container">
+                                    <EventDashboard />
                                 </div>
                             } />
                         </Route>

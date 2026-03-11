@@ -38,6 +38,7 @@ const Login = () => {
                 case 'Estudiante': navigate('/student-dashboard'); break;
                 case 'Docente': navigate('/teacher-dashboard'); break;
                 case 'Asistente': navigate('/assistant-dashboard'); break;
+                case 'Coordinador': navigate('/coordinador-dashboard'); break;
                 default: navigate('/');
             }
         }
@@ -57,6 +58,23 @@ const Login = () => {
     });
     const [verificationStep, setVerificationStep] = useState(false);
 
+    // ✨ NUEVO: Estado para el reenvío de código
+    const [resendDisabled, setResendDisabled] = useState(false);
+    const [resendTimer, setResendTimer] = useState(0);
+
+    // Efecto para manejar el temporizador de reenvío
+    React.useEffect(() => {
+        let interval;
+        if (resendDisabled && resendTimer > 0) {
+            interval = setInterval(() => {
+                setResendTimer(prev => prev - 1);
+            }, 1000);
+        } else if (resendTimer === 0) {
+            setResendDisabled(false);
+        }
+        return () => clearInterval(interval);
+    }, [resendDisabled, resendTimer]);
+
     // ... (Mantienes tus funciones handleLoginSubmit, handleRegisterSubmit, etc. intactas)
     const handleLoginSubmit = async (e) => {
         e.preventDefault();
@@ -69,6 +87,7 @@ const Login = () => {
                 case 'Estudiante': navigate('/student-dashboard'); break;
                 case 'Docente': navigate('/teacher-dashboard'); break;
                 case 'Asistente': navigate('/assistant-dashboard'); break;
+                case 'Coordinador': navigate('/coordinador-dashboard'); break;
                 default: navigate('/');
             }
         } catch (err) {
@@ -97,6 +116,24 @@ const Login = () => {
         } catch (error) {
             console.error(error);
             showError("Error al registrar", error.response?.data?.detail || JSON.stringify(error.response?.data) || error.message);
+        }
+    };
+
+    const handleResendCode = async () => {
+        if (!regData.email) return;
+        
+        try {
+            setResendDisabled(true);
+            setResendTimer(60);
+            await axios.post('http://localhost:8000/api/users/auth/resend-code/', {
+                email: regData.email
+            });
+            showToast("Código reenviado a tu correo", "success");
+        } catch (error) {
+            showError("Error al reenviar", error.response?.data?.error || "Intenta nuevamente más tarde.");
+            // Reset timer if there was an error
+            setResendDisabled(false);
+            setResendTimer(0);
         }
     };
 
@@ -244,6 +281,28 @@ const Login = () => {
                                             placeholder="• • • •"
                                             autoFocus
                                         />
+                                    </div>
+
+                                    {/* 🔄 Reenviar código */}
+                                    <div className="register-field" style={{ textAlign: 'center', marginTop: '15px' }}>
+                                        <button
+                                            type="button"
+                                            onClick={handleResendCode}
+                                            disabled={resendDisabled}
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                color: resendDisabled ? '#9ca3af' : 'var(--primary-color)',
+                                                cursor: resendDisabled ? 'not-allowed' : 'pointer',
+                                                fontSize: '0.9rem',
+                                                fontWeight: '500',
+                                                textDecoration: resendDisabled ? 'none' : 'underline'
+                                            }}
+                                        >
+                                            {resendDisabled 
+                                                ? `Reenviar código de nuevo en ${resendTimer}s` 
+                                                : '¿No recibiste el código? Reenviar'}
+                                        </button>
                                     </div>
                                 </div>
                                 <div className="register-footer">

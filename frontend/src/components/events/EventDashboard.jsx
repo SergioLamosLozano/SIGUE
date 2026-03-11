@@ -5,6 +5,7 @@ import { Pie, Bar } from 'react-chartjs-2';
 
 // Importamos tu instancia de API configurada (importante para que funcione el token)
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 import { showSuccess, showError, showConfirm } from '../../services/alert';
 import '../../styles/EventDashboard.css';
@@ -15,11 +16,13 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 const EventDashboard = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
 
     // --- ESTADOS PRINCIPALES ---
     const [evento, setEvento] = useState(null);
     const [stats, setStats] = useState(null);
     const [inscritos, setInscritos] = useState([]);
+    const [isStaff, setIsStaff] = useState(false);
     const [loading, setLoading] = useState(true);
 
     // Estados de botones de acción
@@ -41,15 +44,35 @@ const EventDashboard = () => {
         try {
             setLoading(true);
             // Usamos Promise.all para eficiencia
-            const [resEvento, resStats, resInscritos] = await Promise.all([
+            const [resEvento, resStats, resInscritos, resMisEventosStaff] = await Promise.all([
                 api.get(`/eventos/${id}/`),
                 api.get(`/eventos/${id}/estadisticas/`),
-                api.get(`/eventos/${id}/inscritos/`)
+                api.get(`/eventos/${id}/inscritos/`),
+                api.get(`/eventos/mis-eventos-staff/`)
             ]);
 
             setEvento(resEvento.data);
             setStats(resStats.data);
             setInscritos(resInscritos.data);
+            
+            const staffEventIds = resMisEventosStaff.data.map(e => e.id);
+            setIsStaff(staffEventIds.includes(parseInt(id)));
+
+            // GUARD: Allow Admin, or Coordinator (only if APROBADO), or Staff
+            const canAccess = user?.role === 'Administrador' || 
+                             (user?.role === 'Coordinador' && resEvento.data.estado === 'APROBADO') ||
+                             staffEventIds.includes(parseInt(id));
+
+            if (!canAccess) {
+                showError(
+                    'Acceso Restringido',
+                    'No tienes permisos para acceder al dashboard de este evento o el evento no está aprobado aún.'
+                );
+                const redirectPath = user?.role === 'Coordinador' ? '/coordinador-dashboard/events' : 
+                                   (user?.role === 'Estudiante' ? '/student-dashboard' : '/teacher-dashboard');
+                navigate(redirectPath, { replace: true });
+                return;
+            }
 
         } catch (error) {
             console.error("Error fetching event data", error);
@@ -224,7 +247,14 @@ const EventDashboard = () => {
 
             {/* 1. BOTÓN VOLVER (Restaurado FUERA del header) */}
             <div style={{ marginBottom: '20px' }}>
-                <button onClick={() => navigate('/admin-dashboard/events')} className="btn btn-secondary">
+                <button 
+                    onClick={() => {
+                        if (user?.role === 'Administrador') navigate('/admin-dashboard/events');
+                        else if (user?.role === 'Coordinador') navigate('/coordinador-dashboard/events');
+                        else navigate('/staff-dashboard/events');
+                    }} 
+                    className="btn btn-secondary"
+                >
                     ← Volver a Eventos
                 </button>
             </div>
@@ -255,6 +285,13 @@ const EventDashboard = () => {
                                         </span>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* ✨ NUEVO: Indicador de Difusión Pendiente */}
+                        {evento.estado === 'PENDIENTE' && evento.enviar_difusion && (
+                            <div style={{ marginTop: '10px', display: 'inline-block', backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: '6px', fontSize: '0.85rem', border: '1px solid #c8e6c9' }}>
+                                <strong>📧 Difusión Programada:</strong> Al aprobar este evento, se enviarán automáticamente los correos de invitación.
                             </div>
                         )}
                     </div>
@@ -320,7 +357,7 @@ const EventDashboard = () => {
                 </button>
 
                 {evento.asistencia_qr && (
-                    <button className="event-dashboard__action-btn" onClick={() => navigate(`/admin-dashboard/event/${id}/scanner`)}>
+                    <button className="event-dashboard__action-btn" onClick={() => isStaff ? navigate(`/staff-dashboard/event/${id}/scanner`) : navigate(`/admin-dashboard/event/${id}/scanner`)}>
                         📸 Validar QRs (Escáner)
                     </button>
                 )}

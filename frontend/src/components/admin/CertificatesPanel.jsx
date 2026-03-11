@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import '../../styles/Certificados.css';
 import CertificateDesigner from './CertificateDesigner';
 import CertificateSender from './CertificateSender';
@@ -14,7 +15,9 @@ import CertificateHistory from './CertificateHistory';
 
 const CertificatesPanel = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [view, setView] = useState('menu'); // 'menu' | 'designer' | 'sender'
+    const backUrl = user?.role === 'Coordinador' ? '/coordinador-dashboard' : '/admin-dashboard';
 
     return (
         <div className="certificates-panel">
@@ -22,7 +25,7 @@ const CertificatesPanel = () => {
             <div className="page-header-card">
                 <div className="page-header-card__left">
                     <button 
-                        onClick={() => navigate('/admin-dashboard')} 
+                        onClick={() => navigate(backUrl)} 
                         className="btn btn-secondary"
                     >
                         ← Volver

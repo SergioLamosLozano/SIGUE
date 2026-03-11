@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import axios from 'axios';
-import { validarCodigoQR } from '../../services/api';
+import api, { validarCodigoQR } from '../../services/api';
 import '../../styles/QRScanner.css';
 
 /**
@@ -12,7 +12,9 @@ import '../../styles/QRScanner.css';
  */
 function QRScanner() {
   const { id } = useParams();
+  const navigate = useNavigate();
   // Estados de UI y Datos
+  const [isStaff, setIsStaff] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -29,7 +31,13 @@ function QRScanner() {
     if (inputRef.current) {
       inputRef.current.focus();
     }
-  }, []);
+    api.get('/eventos/mis-eventos-staff/')
+        .then(res => {
+            const staffEventIds = res.data.map(e => e.id);
+            setIsStaff(staffEventIds.includes(parseInt(id)));
+        })
+        .catch(err => console.error(err));
+  }, [id]);
 
   // Recurperar foco tras validar
   useEffect(() => {
@@ -200,9 +208,9 @@ function QRScanner() {
       <nav className="navbar" style={{ marginBottom: '1rem', borderRadius: '8px', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="scanner-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <h1 style={{ margin: 0, fontSize: '1.5rem', color: 'white' }}>📸 Escáner de Evento</h1>
-          <Link to={`/admin-dashboard/event/${id}`} className="btn" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', textDecoration: 'none', border: 'none' }}>
+          <button onClick={() => isStaff ? navigate(`/staff-dashboard/event/${id}`) : navigate(`/admin-dashboard/event/${id}`)} className="btn" style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', textDecoration: 'none', border: 'none', cursor: 'pointer' }}>
             ⬅ Volver al Evento
-          </Link>
+          </button>
         </div>
       </nav>
 

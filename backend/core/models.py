@@ -286,6 +286,9 @@ class Evento(models.Model):
     # Configuración de Coordenadas (JSON) proveniente del CertificateDesigner
     config_certificado = models.JSONField(default=dict, blank=True, null=True, verbose_name="Configuración del Certificado")
     
+    # Track diffusion preference (sent upon admin approval)
+    enviar_difusion = models.BooleanField(default=False, verbose_name="Enviar Difusión Automática")
+    
     # Workflow de Aprobación
     ESTADO_CHOICES = [
         ('PENDIENTE', 'Pendiente de Aprobación'),
@@ -306,6 +309,24 @@ class Evento(models.Model):
 
     def __str__(self):
         return self.titulo
+
+class EventoStaff(models.Model):
+    """
+    Tabla intermedia que asigna privilegios temporales de Staff a un usuario para un evento específico.
+    El staff puede escanear QR y registrar asistencia en dicho evento.
+    """
+    evento = models.ForeignKey(Evento, on_delete=models.CASCADE, related_name='staff_asignados', verbose_name='Evento')
+    usuario = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='staff_eventos', verbose_name='Usuario Staff')
+    asignado_por = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='staff_asignaciones', verbose_name='Asignado Por')
+    fecha_asignacion = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de Asignación')
+
+    class Meta:
+        unique_together = ('evento', 'usuario')  # Un usuario no puede ser staff doble del mismo evento
+        verbose_name = 'Staff de Evento'
+        verbose_name_plural = 'Staff de Eventos'
+
+    def __str__(self):
+        return f'{self.usuario.full_name} - Staff de "{self.evento.titulo}"'
 
 class Inscripcion(models.Model):
     """

@@ -331,11 +331,16 @@ const EventList = ({ canCreate = false }) => {
 
     const isAdmin = user?.role === 'Administrador';
     const isDocente = user?.role === 'Docente';
+    const isCoordinador = user?.role === 'Coordinador';
+    const isManagerRole = isAdmin || isCoordinador; // roles que gestionan eventos
 
     const filterEvents = () => {
         const now = new Date();
-        // Admin: Ve todo sin filtros de pestañas
+        // Admin: Ve todo sin filtros de pestaWas
         if (isAdmin) return eventos;
+
+        // Coordinador: solo VE sus propios eventos (sin tabs de inscripción)
+        if (isCoordinador) return eventos.filter(ev => ev.creado_por === user.id || ev.creado_por?.id === user.id || ev.creado_por === user.id);
 
         return eventos.filter(evento => {
             const eventStart = new Date(evento.fecha);
@@ -367,9 +372,9 @@ const EventList = ({ canCreate = false }) => {
             {/* HEADER DE LA SECCIÓN */}
             <div className="page-header-card">
                 <div className="page-header-card__left">
-                    {isAdmin && (
+                    {isManagerRole && (
                         <button
-                            onClick={() => navigate('/admin-dashboard')}
+                            onClick={() => navigate(isCoordinador ? '/coordinador-dashboard' : '/admin-dashboard')}
                             className="btn btn-secondary"
                             title="Volver al Panel"
                         >
@@ -377,7 +382,7 @@ const EventList = ({ canCreate = false }) => {
                         </button>
                     )}
                     <h2 className="page-title">
-                        {isAdmin ? '📅 Gestión de Eventos' : '📅 Eventos y Actividades'}
+                        {isManagerRole ? '📅 Gestión de Eventos' : '📅 Eventos y Actividades'}
                     </h2>
                 </div>
 
@@ -390,8 +395,8 @@ const EventList = ({ canCreate = false }) => {
                 </div>
             </div>
 
-            {/* TABS DE NAVEGACIÓN (DOCENTES Y ESTUDIANTES) */}
-            {!isAdmin && (
+            {/* TABS DE NAVEGACIÓN (SÓLO DOCENTES Y ESTUDIANTES - no Coordinador ni Admin) */}
+            {!isManagerRole && (
                 <div className="tabs-container">
                     <button
                         className={`tab-button ${activeTab === 'available' ? 'active' : ''}`}
@@ -438,13 +443,14 @@ const EventList = ({ canCreate = false }) => {
                     {displayedEvents.map(evento => (
                         <div
                             key={evento.id}
-                            className={`event-card ${canCreate ? 'clickable admin-view' : ''} ${evento.estado === 'PENDIENTE' ? 'pending-event' : ''}`}
+                            className={`event-card ${isManagerRole ? 'clickable admin-view' : ''} ${evento.estado === 'PENDIENTE' ? 'pending-event' : ''}`}
                             onClick={() => {
-                                if (canCreate) {
-                                    navigate(`/admin-dashboard/event/${evento.id}`);
-                                }
+                                if (isAdmin) navigate(`/admin-dashboard/event/${evento.id}`);
+                                else if (isCoordinador && evento.estado === 'APROBADO') navigate(`/coordinador-dashboard/event/${evento.id}`);
+                                // Coordinador with PENDIENTE event: no navigation (show badge instead)
                             }}
-                            style={evento.estado === 'PENDIENTE' ? { border: '2px dashed #f59e0b', opacity: 0.9 } : {}}
+                            style={evento.estado === 'PENDIENTE' ? { border: '2px dashed #f59e0b', opacity: 0.9 } : {}
+                            }
                         >
                             {/* IMAGEN DE FLYER SI EXISTE (almacenado como base64 en BD) */}
                             {evento.has_flyer && evento.flyer_base64 && (
@@ -479,8 +485,8 @@ const EventList = ({ canCreate = false }) => {
                                 <div className="event-actions">
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
 
-                                        {/* --- GESTIÓN (Admin o Dueño) --- */}
-                                        {(isAdmin || (canCreate && evento.creado_por === user.id)) && (
+                                        {/* --- GESTIÓN (Admin o Coordinador dueño) --- */}
+                                        {(isAdmin || (isCoordinador && (evento.creado_por === user.id || evento.creado_por?.id === user.id))) && (
                                             <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
                                                 {/* Aprobar (Solo Admin y Pendiente) */}
                                                 {isAdmin && evento.estado === 'PENDIENTE' && (
@@ -514,8 +520,8 @@ const EventList = ({ canCreate = false }) => {
                                             </div>
                                         )}
 
-                                        {/* --- PARTICIPACIÓN (Todos excepto Admin, o incluso Admin si quisiera) --- */}
-                                        {!isAdmin && (
+                                        {/* --- PARTICIPACIÓN (Solo Estudiantes - ni Admin ni Coordinador) --- */}
+                                        {!isManagerRole && (
                                             <>
                                                 {activeTab === 'history' ? (
                                                     <div className="alert alert-secondary" style={{ marginBottom: 0, textAlign: 'center', padding: '0.5rem', background: '#f3f4f6', color: '#6b7280' }}>
@@ -531,6 +537,13 @@ const EventList = ({ canCreate = false }) => {
                                                     </button>
                                                 )}
                                             </>
+                                        )}
+
+                                        {/* Coordinador: aviso de pendiente (no puede abrir dashboard de pendientes) */}
+                                        {isCoordinador && evento.estado === 'PENDIENTE' && (
+                                            <div style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#92400e', padding: '4px 10px', borderRadius: '6px', textAlign: 'center', marginTop: '4px', width: '100%' }}>
+                                                ⏳ Pendiente de aprobación — el dashboard se desbloquea cuando sea aprobado
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -740,8 +753,13 @@ const EventList = ({ canCreate = false }) => {
                                                         />
                                                         <div>
                                                             <strong style={{ display: 'block', color: newEvent.enviar_difusion ? '#2e7d32' : '#e65100' }}>
-                                                                📧 {newEvent.enviar_difusion ? 'Se enviarán correos automáticamente' : 'Enviar correos de difusión al crear'}
+                                                                📧 {newEvent.enviar_difusion ? 'Se enviarán correos automáticamente' : 'Enviar correos de difusión'}
                                                             </strong>
+                                                            {user?.role !== 'Administrador' && newEvent.enviar_difusion && (
+                                                                <small style={{display: 'block', color: '#666', marginTop: '4px'}}>
+                                                                    La difusión se enviará automáticamente una vez que el Administrador apruebe este evento.
+                                                                </small>
+                                                            )}
                                                             <span style={{ fontSize: '0.8rem', color: '#666' }}>
                                                                 {newEvent.enviar_difusion
                                                                     ? 'Los estudiantes de los programas seleccionados recibirán un email de invitación'

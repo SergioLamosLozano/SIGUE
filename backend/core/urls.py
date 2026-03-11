@@ -8,6 +8,8 @@ from .views import (
     UserUpdateView, 
     UserViewSet, 
     VerifyEmailView,
+    ResendVerificationCodeView,
+    UserSearchView,
     # Event management views
     AsistenteViewSet, 
     CodigoQRViewSet, 
@@ -64,6 +66,12 @@ urlpatterns = [
 
     # Verificar email
     path('users/auth/verify/', VerifyEmailView.as_view(), name='auth_verify'),
+
+    # Reenviar código de verificación
+    path('users/auth/resend-code/', ResendVerificationCodeView.as_view(), name='resend_code'),
+
+    # Buscar usuarios (Estudiante/Docente) para asignar staff
+    path('users/search/', UserSearchView.as_view(), name='user_search'),
     
     # Ver y editar el perfil propio del usuario autenticado
     path('users/profile/', UserUpdateView.as_view(), name='user_profile'),

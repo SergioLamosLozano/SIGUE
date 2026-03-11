@@ -85,15 +85,62 @@ class VerifyEmailView(APIView):
             return Response({'message': 'Cuenta verificada exitosamente'}, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Código incorrecto'}, status=status.HTTP_400_BAD_REQUEST)
+
+class ResendVerificationCodeView(APIView):
+    """
+    Endpoint para reenviar el código de verificación al correo de un usuario inactivo.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+
+        if not email:
+            return Response({'error': 'El correo electrónico es obligatorio'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user = CustomUser.objects.filter(email=email).first()
+        
+        if not user:
+             return Response({'error': 'No existe un usuario con este correo'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if user.is_active:
+             return Response({'error': 'Este usuario ya está activo', 'already_active': True}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generar nuevo código
+        import random
+        from django.core.mail import send_mail
+        from django.conf import settings
+        
+        code = str(random.randint(1000, 9999))
+        user.verification_code = code
+        user.save()
+
+        # Enviar correo
+        try:
+             print(f"DEBUG CODE for {user.email}: {code}") # Para facilitar pruebas locales
+             send_mail(
+                'Confirma tu cuenta - SIGUE',
+                f'Hola {user.full_name}, Tu nuevo código de verificación es: {code}',
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"Error enviando correo de reenvío: {e}")
+            return Response({'error': 'Ocurrió un error al enviar el correo'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({'message': 'Código reenviado exitosamente'}, status=status.HTTP_200_OK)
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from .models import Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle, GeneratedCertificate
+from .models import Asistente, CodigoQR, Evento, Inscripcion, Programa, EstudianteActivoUnivalle, GeneratedCertificate, EventoStaff
 from .serializers import (
     AsistenteSerializer, CodigoQRSerializer, EventoSerializer, 
-    InscripcionSerializer, ProgramaSerializer, EstudianteActivoSerializer
+    InscripcionSerializer, ProgramaSerializer, EstudianteActivoSerializer,
+    EventoStaffSerializer, UserSearchSerializer
 )
+from .permissions import IsAdminOrCoordinatorOrEventStaff
 import pandas as pd
 from django.utils import timezone
 from .email_utils import enviar_codigos_qr_email
@@ -171,16 +218,59 @@ class EventoViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         from rest_framework.exceptions import PermissionDenied
-        if user.role == 'Estudiante':
+        if user.role in ('Estudiante', 'Docente'):
             raise PermissionDenied("No tienes permisos para crear eventos.")
 
         estado = 'APROBADO' if user.role == 'Administrador' else 'PENDIENTE'
         evento = serializer.save(creado_por=user, estado=estado)
         
-        # Enviar difusión automática si se solicitó
-        enviar_difusion = self.request.data.get('enviar_difusion', 'false')
-        if enviar_difusion == 'true' and evento.programas_dirigidos.exists():
+        # Obtener el valor de enviar_difusion (puede venir como string 'true' del FormData o como booleano)
+        req_difusion = self.request.data.get('enviar_difusion')
+        enviar_difusion_flag = req_difusion == 'true' or req_difusion is True
+
+        # Guardamos el evento. Si es PENDIENTE, enviar_difusion se guarda en BD usando el serializer (boolean true). 
+        # Si no venía en serializer por la forma del payload, explícitamente forzarlo si aplica.
+        evento = serializer.save(creado_por=user, estado=estado)
+        if enviar_difusion_flag and estado == 'PENDIENTE':
+             evento.enviar_difusion = True
+             evento.save()
+        
+        # Enviar difusión automática SOLO si se creó directamente como APROBADO y se solicitó
+        if enviar_difusion_flag and estado == 'APROBADO' and evento.programas_dirigidos.exists():
             self._emails_enviados = self._enviar_difusion_evento(evento)
+
+    def update(self, request, *args, **kwargs):
+        """Override update to include emails_enviados in the response if triggered upon approval."""
+        self._emails_enviados = 0
+        response = super().update(request, *args, **kwargs)
+        if self._emails_enviados > 0:
+            response.data['emails_enviados'] = self._emails_enviados
+            response.data['message'] = f'Evento aprobado y {self._emails_enviados} correos de difusión enviados con éxito.'
+        return response
+
+    def perform_update(self, serializer):
+        """
+        Si un administrador aprueba un evento que estaba PENDIENTE y
+        el docente había marcado enviar_difusion = True, envía los correos.
+        """
+        # Obtain the old instance before saving
+        old_instance = self.get_object()
+        old_estado = old_instance.estado
+        
+        # Save the new changes
+        evento = serializer.save()
+        
+        # Check if the state changed from PENDIENTE to APROBADO
+        if old_estado == 'PENDIENTE' and evento.estado == 'APROBADO':
+            # Check if diffusion was requested
+            req_difusion = self.request.data.get('enviar_difusion', evento.enviar_difusion)
+            enviar_difusion_flag = req_difusion == 'true' or req_difusion is True
+            
+            if enviar_difusion_flag and evento.programas_dirigidos.exists():
+                self._emails_enviados = self._enviar_difusion_evento(evento)
+                # Ensure we don't send it again if edited later
+                evento.enviar_difusion = False
+                evento.save()
 
     def _enviar_difusion_evento(self, evento):
         """
@@ -401,9 +491,77 @@ Universidad del Valle - SIGUE
             return Response({'error': 'No tienes permisos para realizar esta acción'}, status=status.HTTP_403_FORBIDDEN)
         
         evento = self.get_object()
+        old_estado = evento.estado
+
         evento.estado = 'APROBADO'
         evento.save()
+
+        # Si cambió de pendiente a aprobado y se había solicitado difusión, hacerla efectiva
+        emails_enviados = 0
+        if old_estado == 'PENDIENTE' and evento.enviar_difusion and evento.programas_dirigidos.exists():
+            emails_enviados = self._enviar_difusion_evento(evento)
+            evento.enviar_difusion = False
+            evento.save()
+            return Response({'message': f'Evento aprobado exitosamente. Se enviaron {emails_enviados} correos de difusión.'})
+
         return Response({'message': 'Evento aprobado exitosamente'})
+
+    @action(detail=True, methods=['get'])
+    def staff(self, request, pk=None):
+        """
+        Lista el staff asignado a un evento.
+        Accesible por Administrador o el Coordinador creador del evento.
+        """
+        evento = self.get_object()
+        user = request.user
+        if user.role not in ('Administrador', 'Coordinador'):
+            return Response({'error': 'No tienes permisos para ver el staff'}, status=status.HTTP_403_FORBIDDEN)
+        staff_qs = EventoStaff.objects.filter(evento=evento).select_related('usuario', 'asignado_por')
+        serializer = EventoStaffSerializer(staff_qs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='staff/agregar')
+    def add_staff(self, request, pk=None):
+        """
+        Asigna un usuario como staff temporal de un evento.
+        Solo el Coordinador creador del evento o el Admin puede hacerlo.
+        Body: { "usuario_id": "<doc_id>" }
+        """
+        evento = self.get_object()
+        user = request.user
+        if user.role == 'Administrador' or (user.role == 'Coordinador' and evento.creado_por == user):
+            usuario_id = request.data.get('usuario_id')
+            if not usuario_id:
+                return Response({'error': 'usuario_id es requerido'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                target_user = CustomUser.objects.get(id=usuario_id)
+            except CustomUser.DoesNotExist:
+                return Response({'error': 'Usuario no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+            if target_user.role not in ('Estudiante', 'Docente', 'Asistente'):
+                return Response({'error': 'Solo Estudiantes y Docentes pueden recibir permisos de staff'}, status=status.HTTP_400_BAD_REQUEST)
+            staff_entry, created = EventoStaff.objects.get_or_create(
+                evento=evento, usuario=target_user, defaults={'asignado_por': user}
+            )
+            if not created:
+                return Response({'message': 'El usuario ya es staff de este evento'}, status=status.HTTP_200_OK)
+            serializer = EventoStaffSerializer(staff_entry)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({'error': 'No tienes permisos para asignar staff a este evento'}, status=status.HTTP_403_FORBIDDEN)
+
+    @action(detail=True, methods=['delete'], url_path='staff/quitar/(?P<usuario_id>[^/.]+)')
+    def remove_staff(self, request, pk=None, usuario_id=None):
+        """
+        Quita los privilegios de staff de un usuario en un evento.
+        Solo el Coordinador creador del evento o el Admin puede hacerlo.
+        """
+        evento = self.get_object()
+        user = request.user
+        if user.role == 'Administrador' or (user.role == 'Coordinador' and evento.creado_por == user):
+            deleted, _ = EventoStaff.objects.filter(evento=evento, usuario__id=usuario_id).delete()
+            if deleted:
+                return Response({'message': 'Staff removido exitosamente'})
+            return Response({'error': 'El usuario no es staff de este evento'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'No tienes permisos'}, status=status.HTTP_403_FORBIDDEN)
 
     @action(detail=True, methods=['post'])
     def unirse(self, request, pk=None):
@@ -428,7 +586,19 @@ Universidad del Valle - SIGUE
         serializer = EventoSerializer(eventos, many=True, context={'request': request})
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='mis-eventos-staff')
+    def mis_eventos_staff(self, request):
+        """Devuelve los eventos activos donde el usuario autenticado es Staff."""
+        now = timezone.now()
+        eventos_staff = Evento.objects.filter(
+            staff_asignados__usuario=request.user
+        ).filter(
+            Q(fecha_fin__gte=now) | Q(fecha_fin__isnull=True)
+        ).distinct()
+        serializer = EventoSerializer(eventos_staff, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def inscritos(self, request, pk=None):
         """Devuelve la lista de personas inscritas a un evento específico."""
         evento = self.get_object()
@@ -436,7 +606,7 @@ Universidad del Valle - SIGUE
         serializer = InscripcionSerializer(inscripciones, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def estadisticas(self, request, pk=None):
         """
         Calcula estadísticas del evento:
@@ -534,7 +704,7 @@ Universidad del Valle - SIGUE
             }
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def generar_qrs_masivo(self, request, pk=None):
         """
         Genera códigos QR para todos los inscritos en el evento.
@@ -593,7 +763,7 @@ Universidad del Valle - SIGUE
             
 
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def enviar_emails_evento(self, request, pk=None):
         """
         Envía los códigos QR por correo electrónico a todos los inscritos que tengan email.
@@ -643,7 +813,7 @@ Universidad del Valle - SIGUE
             print(f"CRITICAL ERROR in enviar_emails_evento: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def generar_certificados_masivo(self, request, pk=None):
         """
         Genera y envía certificados PDF a los asistentes que marcaron asistencia (asistio=True).
@@ -716,7 +886,7 @@ Universidad del Valle - SIGUE
             'errors': errors
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def ver_previsualizacion_certificado(self, request, pk=None):
         """
         Genera una vista previa del certificado con datos dummy para verificar alineación.
@@ -752,7 +922,7 @@ Universidad del Valle - SIGUE
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminOrCoordinatorOrEventStaff])
     def exportar_asistentes_excel(self, request, pk=None):
         """
         Genera un archivo .xlsx descargable con la lista de inscritos al evento.
@@ -974,6 +1144,12 @@ class CodigoQRViewSet(viewsets.ModelViewSet):
 
             if not qr_obj:
                  return Response({'error': 'Código o Identificación no válida'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Validar permisos sobre el evento (Admin, Creador o Staff del evento)
+            if qr_obj.evento:
+                perm = IsAdminOrCoordinatorOrEventStaff()
+                if not perm.has_object_permission(request, self, qr_obj.evento):
+                    return Response({'error': 'No tienes permisos para escanear QRs de este evento.'}, status=status.HTTP_403_FORBIDDEN)
             
             # Construir información de respuesta normalizada
             attendant_info = {}
@@ -2104,3 +2280,33 @@ class DownloadCertificatesZipView(APIView):
         response = HttpResponse(zip_buffer, content_type='application/zip')
         response['Content-Disposition'] = 'attachment; filename="certificados_seleccionados.zip"'
         return response
+
+
+class UserSearchView(APIView):
+    """
+    Endpoint para buscar usuarios con rol Estudiante o Docente.
+    Permite al Coordinador (o Admin) buscar personas para asignar como staff.
+    GET /api/users/search/?q=<term>
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.role not in ('Administrador', 'Coordinador'):
+            return Response({'error': 'No tienes permisos para buscar usuarios'}, status=status.HTTP_403_FORBIDDEN)
+
+        q = request.query_params.get('q', '').strip()
+        if len(q) < 2:
+            return Response({'results': []})
+
+        queryset = CustomUser.objects.filter(
+            role__in=['Estudiante', 'Docente'],
+            is_active=True
+        ).filter(
+            Q(full_name__icontains=q) |
+            Q(id__icontains=q) |
+            Q(email__icontains=q)
+        )[:20]
+
+        serializer = UserSearchSerializer(queryset, many=True)
+        return Response({'results': serializer.data})
